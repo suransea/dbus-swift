@@ -1,0 +1,3 @@
+[submodule "Sources/CDBusVendored/dbus"]
+	path = Sources/CDBusVendored/dbus
+	url = https://gitlab.freedesktop.org/dbus/dbus.git

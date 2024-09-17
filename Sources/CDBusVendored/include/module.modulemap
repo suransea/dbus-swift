@@ -1,0 +1,4 @@
+module CDBusVendored {
+    header "dbus.h"
+    export *
+}
