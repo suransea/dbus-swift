@@ -160,6 +160,23 @@ public struct MessageIter: BitwiseCopyable {
     }
   }
 
+  public mutating func getBasic() -> DBusBasicValue {
+    var value = DBusBasicValue()
+    dbus_message_iter_get_basic(&raw, &value)
+    return value
+  }
+
+  public mutating func getArgument<R: Argument>() -> R {
+    if R.self is FromBasicValue.Type {
+      return (R.self as! FromBasicValue.Type).init(getBasic()) as! R
+    }
+    fatalError("unreachable")
+  }
+
+  public mutating func getArguments<each R: Argument>() -> (repeat each R) {
+    (repeat getArgument() as each R)
+  }
+
   public mutating func next() -> Bool {
     dbus_message_iter_next(&raw) != 0
   }
@@ -185,26 +202,26 @@ public struct MessageIter: BitwiseCopyable {
     closeContainer(sub: &sub)
   }
 
-  public mutating func append(type: ArgumentTypeCode, value: inout DBusBasicValue) -> Bool {
+  public mutating func append(basic value: inout DBusBasicValue, type: ArgumentTypeCode) -> Bool {
     dbus_message_iter_append_basic(&raw, type.rawValue, &value) != 0
   }
 
-  public mutating func append<U: ArgumentProtocol>(_ argument: U) -> Bool {
+  public mutating func append<T: Argument>(_ argument: T) -> Bool {
     if argument is AsBasicValue {
       var value = (argument as! AsBasicValue).asBasicValue()
-      return append(type: U.typeCode, value: &value)
+      return append(basic: &value, type: T.typeCode)
     }
     if argument is WithBasicValue {
       return (argument as! WithBasicValue).withBasicValue { value in
-        append(type: U.typeCode, value: &value)
+        append(basic: &value, type: T.typeCode)
       }
     }
     fatalError("unreachable")
   }
 
-  public mutating func append<each T: ArgumentProtocol>(_ arguments: repeat each T) -> Bool {
+  public mutating func append<each T: Argument>(_ arguments: repeat each T) -> Bool {
     for result in repeat append(each arguments) {
-      if !result {
+      guard result else {
         return false
       }
     }

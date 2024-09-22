@@ -132,9 +132,15 @@ struct CDBusVendored {
     "dbus-pollable-set-epoll.c"
   ]
 
+  static let macSources = [
+    "dbus-server-launchd.c"
+  ]
+
   static var sources: [String] {
     #if os(Linux)
       commonSources + unixSources + linuxSources
+    #elseif os(macOS)
+      commonSources + unixSources + macSources
     #elseif os(Windows)
       commonSources + winSources
     #else
@@ -157,6 +163,7 @@ struct CDBusVendored {
     .define("DBUS_WIN", to: "1", .when(platforms: [.windows])),
     .define("DBUS_EXEEXT", to: "\"\"", .when(platforms: [.linux, .macOS, .openbsd])),
     .define("DBUS_EXEEXT", to: "\".exe\"", .when(platforms: [.windows])),
+    .define("DBUS_ENABLE_LAUNCHD", to: "1", .when(platforms: [.macOS])),
     .define("DBUS_ENABLE_VERBOSE_MODE", to: "1"),
     .define("DBUS_ENABLE_ASSERT", to: "1"),
     .define("DBUS_ENABLE_CHECKS", to: "1"),

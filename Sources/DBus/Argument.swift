@@ -54,26 +54,30 @@ public enum ArgumentTypeCode: Int32 {
   case dictEntry = 101  // 'e'
 }
 
-protocol AsBasicValue {
+public protocol AsBasicValue {
   func asBasicValue() -> DBusBasicValue
 }
 
-protocol WithBasicValue {
+public protocol WithBasicValue {
   func withBasicValue<R>(_ block: (inout DBusBasicValue) -> R) -> R
 }
 
-public protocol ArgumentProtocol {
+public protocol FromBasicValue {
+  init(_ value: DBusBasicValue)
+}
+
+public protocol Argument {
   static var typeCode: ArgumentTypeCode { get }
   static var signature: Signature { get }
 }
 
-extension ArgumentProtocol {
+extension Argument {
   public static var signature: Signature {
     Signature(rawValue: String(UnicodeScalar(UInt32(typeCode.rawValue))!))
   }
 }
 
-extension UInt8: ArgumentProtocol {
+extension UInt8: Argument {
   public static var typeCode: ArgumentTypeCode { .byte }
 }
 
@@ -83,7 +87,13 @@ extension UInt8: AsBasicValue {
   }
 }
 
-extension Bool: ArgumentProtocol {
+extension UInt8: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self = value.byt
+  }
+}
+
+extension Bool: Argument {
   public static var typeCode: ArgumentTypeCode { .boolean }
 }
 
@@ -93,7 +103,13 @@ extension Bool: AsBasicValue {
   }
 }
 
-extension Int16: ArgumentProtocol {
+extension Bool: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self = value.bool_val != 0
+  }
+}
+
+extension Int16: Argument {
   public static var typeCode: ArgumentTypeCode { .int16 }
 }
 
@@ -103,7 +119,13 @@ extension Int16: AsBasicValue {
   }
 }
 
-extension UInt16: ArgumentProtocol {
+extension Int16: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self = value.i16
+  }
+}
+
+extension UInt16: Argument {
   public static var typeCode: ArgumentTypeCode { .uint16 }
 }
 
@@ -113,7 +135,13 @@ extension UInt16: AsBasicValue {
   }
 }
 
-extension Int32: ArgumentProtocol {
+extension UInt16: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self = value.u16
+  }
+}
+
+extension Int32: Argument {
   public static var typeCode: ArgumentTypeCode { .int32 }
 }
 
@@ -123,7 +151,13 @@ extension Int32: AsBasicValue {
   }
 }
 
-extension UInt32: ArgumentProtocol {
+extension Int32: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self = value.i32
+  }
+}
+
+extension UInt32: Argument {
   public static var typeCode: ArgumentTypeCode { .uint32 }
 }
 
@@ -133,7 +167,13 @@ extension UInt32: AsBasicValue {
   }
 }
 
-extension Int64: ArgumentProtocol {
+extension UInt32: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self = value.u32
+  }
+}
+
+extension Int64: Argument {
   public static var typeCode: ArgumentTypeCode { .int64 }
 }
 
@@ -143,7 +183,13 @@ extension Int64: AsBasicValue {
   }
 }
 
-extension UInt64: ArgumentProtocol {
+extension Int64: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self = value.i64
+  }
+}
+
+extension UInt64: Argument {
   public static var typeCode: ArgumentTypeCode { .uint64 }
 }
 
@@ -153,7 +199,13 @@ extension UInt64: AsBasicValue {
   }
 }
 
-extension Double: ArgumentProtocol {
+extension UInt64: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self = value.u64
+  }
+}
+
+extension Double: Argument {
   public static var typeCode: ArgumentTypeCode { .double }
 }
 
@@ -163,20 +215,32 @@ extension Double: AsBasicValue {
   }
 }
 
-extension String: ArgumentProtocol {
+extension Double: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self = value.dbl
+  }
+}
+
+extension String: Argument {
   public static var typeCode: ArgumentTypeCode { .string }
 }
 
 extension String: WithBasicValue {
   public func withBasicValue<R>(_ block: (inout DBusBasicValue) -> R) -> R {
-    return self.withCString { cString in
+    withCString { cString in
       var value = DBusBasicValue(str: UnsafeMutablePointer(mutating: cString))
       return block(&value)
     }
   }
 }
 
-public struct ObjectPath: ArgumentProtocol, Sendable, Equatable, Hashable, RawRepresentable {
+extension String: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self = String(cString: value.str)
+  }
+}
+
+public struct ObjectPath: Argument, Sendable, Equatable, Hashable, RawRepresentable {
   public static var typeCode: ArgumentTypeCode { .objectPath }
   public let rawValue: String
 
@@ -187,14 +251,20 @@ public struct ObjectPath: ArgumentProtocol, Sendable, Equatable, Hashable, RawRe
 
 extension ObjectPath: WithBasicValue {
   public func withBasicValue<R>(_ block: (inout DBusBasicValue) -> R) -> R {
-    return self.rawValue.withCString { cString in
+    rawValue.withCString { cString in
       var value = DBusBasicValue(str: UnsafeMutablePointer(mutating: cString))
       return block(&value)
     }
   }
 }
 
-public struct Signature: ArgumentProtocol, Sendable, Equatable, Hashable, RawRepresentable {
+extension ObjectPath: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self.rawValue = String(cString: value.str)
+  }
+}
+
+public struct Signature: Argument, Sendable, Equatable, Hashable, RawRepresentable {
   public static var typeCode: ArgumentTypeCode { .signature }
 
   public let rawValue: String
@@ -206,14 +276,20 @@ public struct Signature: ArgumentProtocol, Sendable, Equatable, Hashable, RawRep
 
 extension Signature: WithBasicValue {
   public func withBasicValue<R>(_ block: (inout DBusBasicValue) -> R) -> R {
-    return self.rawValue.withCString { cString in
+    rawValue.withCString { cString in
       var value = DBusBasicValue(str: UnsafeMutablePointer(mutating: cString))
       return block(&value)
     }
   }
 }
 
-public struct FileDescriptor: ArgumentProtocol, RawRepresentable {
+extension Signature: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self.rawValue = String(cString: value.str)
+  }
+}
+
+public struct FileDescriptor: Argument, RawRepresentable {
   public static var typeCode: ArgumentTypeCode { .unixFD }
 
   public let rawValue: Int32
@@ -223,18 +299,20 @@ public struct FileDescriptor: ArgumentProtocol, RawRepresentable {
   }
 }
 
+extension FileDescriptor: Sendable, Equatable, Hashable {}
+
 extension FileDescriptor: AsBasicValue {
   public func asBasicValue() -> DBusBasicValue {
     DBusBasicValue(fd: self.rawValue)
   }
 }
 
-extension FileDescriptor: Sendable, Equatable, Hashable {}
-
-extension Array: ArgumentProtocol where Element: ArgumentProtocol {
-  public static var typeCode: ArgumentTypeCode { .array }
+extension FileDescriptor: FromBasicValue {
+  public init(_ value: DBusBasicValue) {
+    self.rawValue = value.fd
+  }
 }
 
-extension Optional: ArgumentProtocol where Wrapped: ArgumentProtocol {
-  public static var typeCode: ArgumentTypeCode { Wrapped.typeCode }
+extension Array: Argument where Element: Argument {
+  public static var typeCode: ArgumentTypeCode { .array }
 }

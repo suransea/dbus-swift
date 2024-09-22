@@ -15,10 +15,19 @@ public class ObjectProxy {
     self.timeout = timeout
   }
 
-  public func call<each T: ArgumentProtocol, R: ArgumentProtocol>(
+  public func call<each T: Argument, each R: Argument>(
     method: Member, interface: Interface, arguments: repeat each T
-  ) throws -> R {
-    fatalError("TODO")
+  ) throws(DBus.Error) -> (repeat each R) {
+    let message = Message(
+      methodCall: (destination: destination, path: path, interface: interface, name: method))
+    var messageIter = MessageIter(for: message)
+    let success = messageIter.append(repeat each arguments)
+    guard success else {
+      throw .init(name: .noMemory, message: "Failed to append arguments")
+    }
+    let reply = try connection.sendWithReplyAndBlock(message: message, timeout: timeout)
+    var replyIter = MessageIter(for: reply)
+    return replyIter.getArguments()
   }
 }
 
@@ -45,6 +54,12 @@ public class InterfaceProxy {
     MemberObject(interfaceProxy: self, member: member)
   }
 
+  public func call<each T: Argument, each R: Argument>(
+    method: Member, arguments: repeat each T
+  ) throws(DBus.Error) -> (repeat each R) {
+    try objectProxy.call(method: method, interface: interface, arguments: repeat each arguments)
+  }
+
   public class MemberObject {
     private let interfaceProxy: InterfaceProxy
     private let member: Member
@@ -54,11 +69,10 @@ public class InterfaceProxy {
       self.member = member
     }
 
-    public func callAsFunction<each T: ArgumentProtocol, R: ArgumentProtocol>(
+    public func callAsFunction<each T: Argument, each R: Argument>(
       _ arguments: repeat each T
-    ) throws -> R {
-      return try interfaceProxy.objectProxy.call(
-        method: member, interface: interfaceProxy.interface, arguments: repeat each arguments)
+    ) throws(DBus.Error) -> (repeat each R) {
+      try interfaceProxy.call(method: member, arguments: repeat each arguments)
     }
   }
 }
