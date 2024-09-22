@@ -1,7 +1,7 @@
 import CDBus
 
 public class Connection {
-  private let raw: OpaquePointer
+  private let raw: OpaquePointer?
   private let isPrivate: Bool
 
   public init(address: String, private: Bool = false) throws(DBus.Error) {
