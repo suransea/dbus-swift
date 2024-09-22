@@ -119,35 +119,39 @@ public class Connection {
     dbus_connection_flush(raw)
   }
 
-  public func canSend(type: Type) -> Bool {
+  public func canSend(type: ArgumentTypeCode) -> Bool {
     dbus_connection_can_send_type(raw, type.rawValue) != 0
   }
 
-  public func send(message: Message) throws(DBus.Error) -> /* serial: */ UInt32 {
+  public func send(message: Message) -> /* serial: */ UInt32? {
     var serial: UInt32 = 0
     if dbus_connection_send(raw, message.raw, &serial) == 0 {
-      throw .init(name: .failed, message: "Failed to send message")
+      return nil
     }
     return serial
   }
 
   public func sendWithReply(
     message: Message, timeout: Timeout = .useDefault
-  ) throws(DBus.Error) -> PendingCall {
+  ) -> PendingCall? {
     var pendingCall: OpaquePointer?
     if dbus_connection_send_with_reply(raw, message.raw, &pendingCall, timeout.rawValue) == 0 {
-      throw .init(name: .failed, message: "Failed to send message with reply")
+      return nil
     }
     return PendingCall(pendingCall!)
   }
 
   public func sendWithReply(
     message: Message, timeout: Timeout = .useDefault, _ block: @escaping (_ reply: Message?) -> Void
-  ) throws(DBus.Error) {
-    let pendingCall = try sendWithReply(message: message, timeout: timeout)
+  ) -> Bool {
+    let pendingCall = sendWithReply(message: message, timeout: timeout)
+    guard let pendingCall = pendingCall else {
+      return false
+    }
     pendingCall.setNotify {
       block(pendingCall.stealReply())
     }
+    return true
   }
 
   public func sendWithReplyAndBlock(
@@ -168,7 +172,7 @@ public class Connection {
 
   public func borrowingMessage<E, R>(
     _ block: (Message?, _ steal: inout Bool) throws(E) -> R
-  ) rethrows -> R {
+  ) throws(E) -> R {
     let message = dbus_connection_borrow_message(raw).map(Message.init)
     var steal = false
     let result = try block(message, &steal)
@@ -191,22 +195,5 @@ public enum DispatchStatus: UInt32 {
 extension DispatchStatus {
   init(_ status: DBusDispatchStatus) {
     self.init(rawValue: status.rawValue)!
-  }
-}
-
-public struct Timeout: Sendable, Equatable, Hashable, RawRepresentable {
-  public let rawValue: Int32
-
-  public init(rawValue: Int32) {
-    self.rawValue = rawValue
-  }
-}
-
-extension Timeout {
-  public static let useDefault = Timeout(rawValue: DBUS_TIMEOUT_USE_DEFAULT)
-  public static let infinite = Timeout(rawValue: DBUS_TIMEOUT_INFINITE)
-
-  public static func milliseconds(_ milliseconds: Int32) -> Timeout {
-    Timeout(rawValue: milliseconds)
   }
 }
