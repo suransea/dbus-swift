@@ -1,38 +1,30 @@
 import CDBus
 
-public class ObjectProxy {
-  private let connection: Connection
-  private let destination: BusName
-  private let path: ObjectPath
-  private let timeout: Timeout
-
-  public init(
-    connection: Connection, destination: BusName, path: ObjectPath, timeout: Timeout = .useDefault
-  ) {
-    self.connection = connection
-    self.destination = destination
-    self.path = path
-    self.timeout = timeout
-  }
+public struct ObjectProxy {
+  let connection: Connection
+  let destination: BusName
+  let path: ObjectPath
+  let timeout: Timeout = .useDefault
 
   public func call<each T: Argument, each R: Argument>(
-    method: Member, interface: Interface, arguments: repeat each T
+    method: Member, of interface: Interface, arguments: repeat each T
   ) throws(DBus.Error) -> (repeat each R) {
     let message = Message(
       methodCall: (destination: destination, path: path, interface: interface, name: method))
-    var messageIter = MessageIter(for: message)
-    let success = messageIter.append(repeat each arguments)
-    guard success else {
-      throw .init(name: .noMemory, message: "Failed to append arguments")
+    var messageIter = MessageIter(appending: message)
+    for success in repeat (each arguments).append(to: &messageIter) {
+      guard success else {
+        throw .init(name: .noMemory, message: "Failed to append arguments")
+      }
     }
     let reply = try connection.sendWithReplyAndBlock(message: message, timeout: timeout)
-    var replyIter = MessageIter(for: reply)
-    return replyIter.getArguments()
+    var replyIter = MessageIter(reading: reply)
+    return (repeat (each R).init(from: &replyIter))
   }
 }
 
 @dynamicMemberLookup
-public class InterfaceProxy {
+public struct InterfaceProxy {
   private let objectProxy: ObjectProxy
   private let interface: Interface
 
@@ -41,38 +33,19 @@ public class InterfaceProxy {
     self.interface = interface
   }
 
-  public init(
-    connection: Connection, destination: BusName, path: ObjectPath, interface: Interface,
-    timeout: Timeout = .useDefault
-  ) {
-    self.objectProxy = ObjectProxy(
-      connection: connection, destination: destination, path: path, timeout: timeout)
-    self.interface = interface
+  public subscript(dynamicMember member: Member) -> MemberProxy {
+    MemberProxy(objectProxy: objectProxy, interface: interface, member: member)
   }
+}
 
-  public subscript(dynamicMember member: Member) -> MemberObject {
-    MemberObject(interfaceProxy: self, member: member)
-  }
+public struct MemberProxy {
+  let objectProxy: ObjectProxy
+  let interface: Interface
+  let member: Member
 
-  public func call<each T: Argument, each R: Argument>(
-    method: Member, arguments: repeat each T
+  public func callAsFunction<each T: Argument, each R: Argument>(
+    _ arguments: repeat each T
   ) throws(DBus.Error) -> (repeat each R) {
-    try objectProxy.call(method: method, interface: interface, arguments: repeat each arguments)
-  }
-
-  public class MemberObject {
-    private let interfaceProxy: InterfaceProxy
-    private let member: Member
-
-    public init(interfaceProxy: InterfaceProxy, member: Member) {
-      self.interfaceProxy = interfaceProxy
-      self.member = member
-    }
-
-    public func callAsFunction<each T: Argument, each R: Argument>(
-      _ arguments: repeat each T
-    ) throws(DBus.Error) -> (repeat each R) {
-      try interfaceProxy.call(method: member, arguments: repeat each arguments)
-    }
+    try objectProxy.call(method: member, of: interface, arguments: repeat each arguments)
   }
 }

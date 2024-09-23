@@ -170,7 +170,7 @@ public class Connection {
     dbus_connection_pop_message(raw).map(Message.init)
   }
 
-  public func borrowingMessage<E, R>(
+  public func borrowMessage<E, R>(
     _ block: (Message?, _ steal: inout Bool) throws(E) -> R
   ) throws(E) -> R {
     let message = dbus_connection_borrow_message(raw).map(Message.init)

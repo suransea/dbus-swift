@@ -143,9 +143,14 @@ public struct MessageIter: BitwiseCopyable {
     raw = DBusMessageIter()
   }
 
-  public init(for message: Message) {
+  public init(reading message: Message) {
     self.init()
     dbus_message_iter_init(message.raw, &raw)
+  }
+
+  public init(appending message: Message) {
+    self.init()
+    dbus_message_iter_init_append(message.raw, &raw)
   }
 
   public var signature: Signature? {
@@ -160,25 +165,24 @@ public struct MessageIter: BitwiseCopyable {
     }
   }
 
+  public mutating func next() -> Bool {
+    dbus_message_iter_next(&raw) != 0
+  }
+
   public mutating func getBasic() -> DBusBasicValue {
     var value = DBusBasicValue()
     dbus_message_iter_get_basic(&raw, &value)
     return value
   }
 
-  public mutating func getArgument<R: Argument>() -> R {
-    if R.self is FromBasicValue.Type {
-      return (R.self as! FromBasicValue.Type).init(getBasic()) as! R
-    }
-    fatalError("unreachable")
+  public mutating func iterateRecurse() -> MessageIter {
+    var sub = MessageIter()
+    dbus_message_iter_recurse(&raw, &sub.raw)
+    return sub
   }
 
-  public mutating func getArguments<each R: Argument>() -> (repeat each R) {
-    (repeat getArgument() as each R)
-  }
-
-  public mutating func next() -> Bool {
-    dbus_message_iter_next(&raw) != 0
+  public mutating func append(basic value: inout DBusBasicValue, type: ArgumentTypeCode) -> Bool {
+    dbus_message_iter_append_basic(&raw, type.rawValue, &value) != 0
   }
 
   public mutating func openContainer(
@@ -189,42 +193,16 @@ public struct MessageIter: BitwiseCopyable {
     return sub
   }
 
-  public mutating func closeContainer(sub: inout MessageIter) {
-    dbus_message_iter_close_container(&raw, &sub.raw)
+  public mutating func closeContainer(sub: inout MessageIter) -> Bool {
+    dbus_message_iter_close_container(&raw, &sub.raw) != 0
   }
 
-  public mutating func withContainer<E>(
+  public mutating func withContainer<E, R>(
     type: ArgumentTypeCode, signature: Signature? = nil,
-    _ block: (inout MessageIter) throws(E) -> Void
-  ) throws(E) {
-    var sub = openContainer(type: type)
-    try block(&sub)
-    closeContainer(sub: &sub)
-  }
-
-  public mutating func append(basic value: inout DBusBasicValue, type: ArgumentTypeCode) -> Bool {
-    dbus_message_iter_append_basic(&raw, type.rawValue, &value) != 0
-  }
-
-  public mutating func append<T: Argument>(_ argument: T) -> Bool {
-    if argument is AsBasicValue {
-      var value = (argument as! AsBasicValue).asBasicValue()
-      return append(basic: &value, type: T.typeCode)
-    }
-    if argument is WithBasicValue {
-      return (argument as! WithBasicValue).withBasicValue { value in
-        append(basic: &value, type: T.typeCode)
-      }
-    }
-    fatalError("unreachable")
-  }
-
-  public mutating func append<each T: Argument>(_ arguments: repeat each T) -> Bool {
-    for result in repeat append(each arguments) {
-      guard result else {
-        return false
-      }
-    }
-    return true
+    _ block: (inout MessageIter) throws(E) -> R
+  ) throws(E) -> R {
+    var sub = openContainer(type: type, signature: signature)
+    defer { _ = closeContainer(sub: &sub) }
+    return try block(&sub)
   }
 }

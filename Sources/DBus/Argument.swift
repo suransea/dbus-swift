@@ -1,5 +1,7 @@
 import CDBus
 
+/// D-Bus message argument type code.
+/// see [D-Bus specification](https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-marshaling)
 public enum ArgumentTypeCode: Int32 {
   /** Type code that is never equal to a legitimate type code */
   case invalid = 0
@@ -54,24 +56,22 @@ public enum ArgumentTypeCode: Int32 {
   case dictEntry = 101  // 'e'
 }
 
-public protocol AsBasicValue {
-  func asBasicValue() -> DBusBasicValue
-}
-
-public protocol WithBasicValue {
-  func withBasicValue<R>(_ block: (inout DBusBasicValue) -> R) -> R
-}
-
-public protocol FromBasicValue {
-  init(_ value: DBusBasicValue)
-}
-
+/// D-Bus message argument.
 public protocol Argument {
+  /// The type code of the argument.
   static var typeCode: ArgumentTypeCode { get }
+  /// The type signature of the argument.
   static var signature: Signature { get }
+
+  /// Read the argument from the message iterator.
+  init(from iter: inout MessageIter)
+
+  /// Append the argument to the message iterator.
+  func append(to iter: inout MessageIter) -> Bool
 }
 
 extension Argument {
+  /// For basic types, the signature is the type code.
   public static var signature: Signature {
     Signature(rawValue: String(UnicodeScalar(UInt32(typeCode.rawValue))!))
   }
@@ -79,169 +79,137 @@ extension Argument {
 
 extension UInt8: Argument {
   public static var typeCode: ArgumentTypeCode { .byte }
-}
 
-extension UInt8: AsBasicValue {
-  public func asBasicValue() -> DBusBasicValue {
-    DBusBasicValue(byt: self)
+  public init(from iter: inout MessageIter) {
+    self = iter.getBasic().byt
   }
-}
 
-extension UInt8: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self = value.byt
+  public func append(to iter: inout MessageIter) -> Bool {
+    var basicValue = DBusBasicValue(byt: self)
+    return iter.append(basic: &basicValue, type: .byte)
   }
 }
 
 extension Bool: Argument {
   public static var typeCode: ArgumentTypeCode { .boolean }
-}
 
-extension Bool: AsBasicValue {
-  public func asBasicValue() -> DBusBasicValue {
-    DBusBasicValue(bool_val: self ? 1 : 0)
+  public init(from iter: inout MessageIter) {
+    self = iter.getBasic().bool_val != 0
   }
-}
 
-extension Bool: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self = value.bool_val != 0
+  public func append(to iter: inout MessageIter) -> Bool {
+    var basicValue = DBusBasicValue(bool_val: self ? 1 : 0)
+    return iter.append(basic: &basicValue, type: .boolean)
   }
 }
 
 extension Int16: Argument {
   public static var typeCode: ArgumentTypeCode { .int16 }
-}
 
-extension Int16: AsBasicValue {
-  public func asBasicValue() -> DBusBasicValue {
-    DBusBasicValue(i16: self)
+  public init(from iter: inout MessageIter) {
+    self = iter.getBasic().i16
   }
-}
 
-extension Int16: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self = value.i16
+  public func append(to iter: inout MessageIter) -> Bool {
+    var basicValue = DBusBasicValue(i16: self)
+    return iter.append(basic: &basicValue, type: .int16)
   }
 }
 
 extension UInt16: Argument {
   public static var typeCode: ArgumentTypeCode { .uint16 }
-}
 
-extension UInt16: AsBasicValue {
-  public func asBasicValue() -> DBusBasicValue {
-    DBusBasicValue(u16: self)
+  public init(from iter: inout MessageIter) {
+    self = iter.getBasic().u16
   }
-}
 
-extension UInt16: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self = value.u16
+  public func append(to iter: inout MessageIter) -> Bool {
+    var basicValue = DBusBasicValue(u16: self)
+    return iter.append(basic: &basicValue, type: .uint16)
   }
 }
 
 extension Int32: Argument {
   public static var typeCode: ArgumentTypeCode { .int32 }
-}
 
-extension Int32: AsBasicValue {
-  public func asBasicValue() -> DBusBasicValue {
-    DBusBasicValue(i32: self)
+  public init(from iter: inout MessageIter) {
+    self = iter.getBasic().i32
   }
-}
 
-extension Int32: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self = value.i32
+  public func append(to iter: inout MessageIter) -> Bool {
+    var basicValue = DBusBasicValue(i32: self)
+    return iter.append(basic: &basicValue, type: .int32)
   }
 }
 
 extension UInt32: Argument {
   public static var typeCode: ArgumentTypeCode { .uint32 }
-}
 
-extension UInt32: AsBasicValue {
-  public func asBasicValue() -> DBusBasicValue {
-    DBusBasicValue(u32: self)
+  public init(from iter: inout MessageIter) {
+    self = iter.getBasic().u32
   }
-}
 
-extension UInt32: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self = value.u32
+  public func append(to iter: inout MessageIter) -> Bool {
+    var basicValue = DBusBasicValue(u32: self)
+    return iter.append(basic: &basicValue, type: .uint32)
   }
 }
 
 extension Int64: Argument {
   public static var typeCode: ArgumentTypeCode { .int64 }
-}
 
-extension Int64: AsBasicValue {
-  public func asBasicValue() -> DBusBasicValue {
-    DBusBasicValue(i64: self)
+  public init(from iter: inout MessageIter) {
+    self = iter.getBasic().i64
   }
-}
 
-extension Int64: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self = value.i64
+  public func append(to iter: inout MessageIter) -> Bool {
+    var basicValue = DBusBasicValue(i64: self)
+    return iter.append(basic: &basicValue, type: .int64)
   }
 }
 
 extension UInt64: Argument {
   public static var typeCode: ArgumentTypeCode { .uint64 }
-}
 
-extension UInt64: AsBasicValue {
-  public func asBasicValue() -> DBusBasicValue {
-    DBusBasicValue(u64: self)
+  public init(from iter: inout MessageIter) {
+    self = iter.getBasic().u64
   }
-}
 
-extension UInt64: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self = value.u64
+  public func append(to iter: inout MessageIter) -> Bool {
+    var basicValue = DBusBasicValue(u64: self)
+    return iter.append(basic: &basicValue, type: .uint64)
   }
 }
 
 extension Double: Argument {
   public static var typeCode: ArgumentTypeCode { .double }
-}
 
-extension Double: AsBasicValue {
-  public func asBasicValue() -> DBusBasicValue {
-    DBusBasicValue(dbl: self)
+  public init(from iter: inout MessageIter) {
+    self = iter.getBasic().dbl
   }
-}
 
-extension Double: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self = value.dbl
+  public func append(to iter: inout MessageIter) -> Bool {
+    var basicValue = DBusBasicValue(dbl: self)
+    return iter.append(basic: &basicValue, type: .double)
   }
 }
 
 extension String: Argument {
   public static var typeCode: ArgumentTypeCode { .string }
-}
 
-extension String: WithBasicValue {
-  public func withBasicValue<R>(_ block: (inout DBusBasicValue) -> R) -> R {
+  public init(from iter: inout MessageIter) {
+    self = String(cString: iter.getBasic().str)
+  }
+
+  public func append(to iter: inout MessageIter) -> Bool {
     withCString { cString in
-      var value = DBusBasicValue(str: UnsafeMutablePointer(mutating: cString))
-      return block(&value)
+      var basicValue = DBusBasicValue(str: UnsafeMutablePointer(mutating: cString))
+      return iter.append(basic: &basicValue, type: .string)
     }
   }
 }
 
-extension String: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self = String(cString: value.str)
-  }
-}
-
-public struct ObjectPath: Argument, Sendable, Equatable, Hashable, RawRepresentable {
-  public static var typeCode: ArgumentTypeCode { .objectPath }
+public struct ObjectPath: Sendable, Equatable, Hashable, RawRepresentable {
   public let rawValue: String
 
   public init(rawValue: String) {
@@ -249,49 +217,45 @@ public struct ObjectPath: Argument, Sendable, Equatable, Hashable, RawRepresenta
   }
 }
 
-extension ObjectPath: WithBasicValue {
-  public func withBasicValue<R>(_ block: (inout DBusBasicValue) -> R) -> R {
+extension ObjectPath: Argument {
+  public static var typeCode: ArgumentTypeCode { .objectPath }
+
+  public init(from iter: inout MessageIter) {
+    self.rawValue = String(cString: iter.getBasic().str)
+  }
+
+  public func append(to iter: inout MessageIter) -> Bool {
     rawValue.withCString { cString in
-      var value = DBusBasicValue(str: UnsafeMutablePointer(mutating: cString))
-      return block(&value)
+      var basicValue = DBusBasicValue(str: UnsafeMutablePointer(mutating: cString))
+      return iter.append(basic: &basicValue, type: .objectPath)
     }
   }
 }
 
-extension ObjectPath: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self.rawValue = String(cString: value.str)
+public struct Signature: Sendable, Equatable, Hashable, RawRepresentable {
+  public let rawValue: String
+
+  public init(rawValue: String) {
+    self.rawValue = rawValue
   }
 }
 
-public struct Signature: Argument, Sendable, Equatable, Hashable, RawRepresentable {
+extension Signature: Argument {
   public static var typeCode: ArgumentTypeCode { .signature }
 
-  public let rawValue: String
-
-  public init(rawValue: String) {
-    self.rawValue = rawValue
+  public init(from iter: inout MessageIter) {
+    self.rawValue = String(cString: iter.getBasic().str)
   }
-}
 
-extension Signature: WithBasicValue {
-  public func withBasicValue<R>(_ block: (inout DBusBasicValue) -> R) -> R {
+  public func append(to iter: inout MessageIter) -> Bool {
     rawValue.withCString { cString in
-      var value = DBusBasicValue(str: UnsafeMutablePointer(mutating: cString))
-      return block(&value)
+      var basicValue = DBusBasicValue(str: UnsafeMutablePointer(mutating: cString))
+      return iter.append(basic: &basicValue, type: .signature)
     }
   }
 }
 
-extension Signature: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self.rawValue = String(cString: value.str)
-  }
-}
-
-public struct FileDescriptor: Argument, RawRepresentable {
-  public static var typeCode: ArgumentTypeCode { .unixFD }
-
+public struct FileDescriptor: Sendable, Equatable, Hashable, RawRepresentable {
   public let rawValue: Int32
 
   public init(rawValue: Int32) {
@@ -299,20 +263,73 @@ public struct FileDescriptor: Argument, RawRepresentable {
   }
 }
 
-extension FileDescriptor: Sendable, Equatable, Hashable {}
+extension FileDescriptor: Argument {
+  public static var typeCode: ArgumentTypeCode { .unixFD }
 
-extension FileDescriptor: AsBasicValue {
-  public func asBasicValue() -> DBusBasicValue {
-    DBusBasicValue(fd: self.rawValue)
+  public init(from iter: inout MessageIter) {
+    self.rawValue = iter.getBasic().fd
   }
-}
 
-extension FileDescriptor: FromBasicValue {
-  public init(_ value: DBusBasicValue) {
-    self.rawValue = value.fd
+  public func append(to iter: inout MessageIter) -> Bool {
+    var basicValue = DBusBasicValue(fd: self.rawValue)
+    return iter.append(basic: &basicValue, type: .unixFD)
   }
 }
 
 extension Array: Argument where Element: Argument {
   public static var typeCode: ArgumentTypeCode { .array }
+
+  public init(from iter: inout MessageIter) {
+    self = []
+    var subIter = iter.iterateRecurse()
+    if subIter.argumentType != .invalid {
+      append(Element(from: &subIter))
+    }
+    while subIter.next() {
+      append(Element(from: &subIter))
+    }
+  }
+
+  public func append(to iter: inout MessageIter) -> Bool {
+    iter.withContainer(type: .array, signature: Element.signature) { subIter in
+      for element in self {
+        guard element.append(to: &subIter) else {
+          return false
+        }
+      }
+      return true
+    }
+  }
+}
+
+public struct Struct<each T: Argument> {
+  public let values: (repeat each T)
+}
+
+extension Struct: Argument {
+  public static var typeCode: ArgumentTypeCode { .struct }
+
+  public static var signature: Signature {
+    var signatures = DBUS_STRUCT_BEGIN_CHAR_AS_STRING
+    for signature in repeat (each T).signature {
+      signatures += signature.rawValue
+    }
+    signatures += DBUS_STRUCT_END_CHAR_AS_STRING
+    return Signature(rawValue: signatures)
+  }
+
+  public init(from iter: inout MessageIter) {
+    values = (repeat (each T).init(from: &iter))
+  }
+
+  public func append(to iter: inout MessageIter) -> Bool {
+    iter.withContainer(type: .struct) { subIter in
+      for value in repeat each values {
+        guard value.append(to: &subIter) else {
+          return false
+        }
+      }
+      return true
+    }
+  }
 }

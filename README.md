@@ -1,3 +1,3 @@
 # dbus-swift
 
-DBus bindings for Swift.
+D-Bus bindings for Swift.
