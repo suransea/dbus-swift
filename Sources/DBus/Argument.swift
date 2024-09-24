@@ -277,7 +277,7 @@ extension Array: Argument where Element: Argument {
   public static var type: ArgumentType { .array }
 
   public init(from iter: inout MessageIter) {
-    self = []
+    self.init()
     var subIter = iter.iterateRecurse()
     if subIter.argumentType != .invalid {
       append(Element(from: &subIter))
@@ -294,6 +294,25 @@ extension Array: Argument where Element: Argument {
       for element in self {
         try element.append(to: &subIter)
       }
+    }
+  }
+}
+
+public struct Variant<T: Argument> {
+  public let value: T
+}
+
+extension Variant: Argument {
+  public static var type: ArgumentType { .variant }
+
+  public init(from iter: inout MessageIter) {
+    var subIter = iter.iterateRecurse()
+    value = T(from: &subIter)
+  }
+
+  public func append(to iter: inout MessageIter) throws(DBus.Error) {
+    try iter.withContainer(type: .variant, signature: T.signature) { subIter throws(DBus.Error) in
+      try value.append(to: &subIter)
     }
   }
 }
@@ -315,13 +334,66 @@ extension Struct: Argument {
   }
 
   public init(from iter: inout MessageIter) {
-    values = (repeat (each T).init(from: &iter))
+    var subIter = iter.iterateRecurse()
+    values = (repeat (each T).init(from: &subIter))
   }
 
   public func append(to iter: inout MessageIter) throws(DBus.Error) {
     try iter.withContainer(type: .struct) { subIter throws(DBus.Error) in
       for value in repeat each values {
         try value.append(to: &subIter)
+      }
+    }
+  }
+}
+
+public struct DictEntry<K: Argument, V: Argument> {
+  public let key: K
+  public let value: V
+}
+
+extension DictEntry: Argument {
+  public static var type: ArgumentType { .dictEntry }
+
+  public static var signature: Signature {
+    let signatures =
+      DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+      + K.signature.rawValue + V.signature.rawValue
+      + DBUS_DICT_ENTRY_END_CHAR_AS_STRING
+    return Signature(rawValue: signatures)
+  }
+
+  public init(from iter: inout MessageIter) {
+    var subIter = iter.iterateRecurse()
+    key = K(from: &subIter)
+    value = V(from: &subIter)
+  }
+
+  public func append(to iter: inout MessageIter) throws(DBus.Error) {
+    try iter.withContainer(type: .dictEntry) { subIter throws(DBus.Error) in
+      try key.append(to: &subIter)
+      try value.append(to: &subIter)
+    }
+  }
+}
+
+extension Dictionary: Argument where Key: Argument, Value: Argument {
+  public static var type: ArgumentType { .array }
+
+  public init(from iter: inout MessageIter) {
+    self.init()
+    let entries = [DictEntry<Key, Value>](from: &iter)
+    for entry in entries {
+      self[entry.key] = entry.value
+    }
+  }
+
+  public func append(to iter: inout MessageIter) throws(DBus.Error) {
+    try iter.withContainer(
+      type: .array, signature: DictEntry<Key, Value>.signature
+    ) { subIter throws(DBus.Error) in
+      for (key, value) in self {
+        try DictEntry(key: key, value: value).append(to: &subIter)
       }
     }
   }

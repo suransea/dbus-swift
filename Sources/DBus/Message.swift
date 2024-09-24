@@ -39,84 +39,48 @@ public class Message: @unchecked Sendable {
   }
 
   public var isNoReply: Bool {
-    get {
-      dbus_message_get_no_reply(raw) != 0
-    }
-    set {
-      dbus_message_set_no_reply(raw, newValue ? 1 : 0)
-    }
+    get { dbus_message_get_no_reply(raw) != 0 }
+    set { dbus_message_set_no_reply(raw, newValue ? 1 : 0) }
   }
 
   public var isAutoStart: Bool {
-    get {
-      dbus_message_get_auto_start(raw) != 0
-    }
-    set {
-      dbus_message_set_auto_start(raw, newValue ? 1 : 0)
-    }
+    get { dbus_message_get_auto_start(raw) != 0 }
+    set { dbus_message_set_auto_start(raw, newValue ? 1 : 0) }
   }
 
   public var serial: UInt32 {
-    get {
-      dbus_message_get_serial(raw)
-    }
-    set {
-      dbus_message_set_serial(raw, newValue)
-    }
+    get { dbus_message_get_serial(raw) }
+    set { dbus_message_set_serial(raw, newValue) }
   }
 
   public var sender: BusName? {
-    get {
-      dbus_message_get_sender(raw).map(String.init(cString:))
-    }
-    set {
-      dbus_message_set_sender(raw, newValue)
-    }
+    get { dbus_message_get_sender(raw).map(String.init(cString:)) }
+    set { dbus_message_set_sender(raw, newValue) }
   }
 
   public var destination: BusName? {
-    get {
-      dbus_message_get_destination(raw).map(String.init(cString:))
-    }
-    set {
-      dbus_message_set_destination(raw, newValue)
-    }
+    get { dbus_message_get_destination(raw).map(String.init(cString:)) }
+    set { dbus_message_set_destination(raw, newValue) }
   }
 
   public var path: ObjectPath? {
-    get {
-      dbus_message_get_path(raw).map(String.init(cString:)).map(ObjectPath.init)
-    }
-    set {
-      dbus_message_set_path(raw, newValue?.rawValue)
-    }
+    get { dbus_message_get_path(raw).map(String.init(cString:)).map(ObjectPath.init) }
+    set { dbus_message_set_path(raw, newValue?.rawValue) }
   }
 
   public var interface: Interface? {
-    get {
-      dbus_message_get_interface(raw).map(String.init(cString:))
-    }
-    set {
-      dbus_message_set_interface(raw, newValue)
-    }
+    get { dbus_message_get_interface(raw).map(String.init(cString:)) }
+    set { dbus_message_set_interface(raw, newValue) }
   }
 
   public var member: Member? {
-    get {
-      dbus_message_get_member(raw).map(String.init(cString:))
-    }
-    set {
-      dbus_message_set_member(raw, newValue)
-    }
+    get { dbus_message_get_member(raw).map(String.init(cString:)) }
+    set { dbus_message_set_member(raw, newValue) }
   }
 
   public var errorName: ErrorName? {
-    get {
-      dbus_message_get_error_name(raw).map(String.init(cString:)).map(ErrorName.init)
-    }
-    set {
-      dbus_message_set_error_name(raw, newValue?.rawValue)
-    }
+    get { dbus_message_get_error_name(raw).map(String.init(cString:)).map(ErrorName.init) }
+    set { dbus_message_set_error_name(raw, newValue?.rawValue) }
   }
 
   public var error: DBus.Error? {

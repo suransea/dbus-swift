@@ -72,11 +72,23 @@ public class Connection: @unchecked Sendable {
   }
 
   public var maxMessageSize: Int {
-    dbus_connection_get_max_message_size(raw)
+    get { dbus_connection_get_max_message_size(raw) }
+    set { dbus_connection_set_max_message_size(raw, newValue) }
   }
 
   public var maxMessageUnixFds: Int {
-    dbus_connection_get_max_message_unix_fds(raw)
+    get { dbus_connection_get_max_message_unix_fds(raw) }
+    set { dbus_connection_set_max_message_unix_fds(raw, newValue) }
+  }
+
+  public var maxReceivedSize: Int {
+    get { dbus_connection_get_max_received_size(raw) }
+    set { dbus_connection_set_max_received_size(raw, newValue) }
+  }
+
+  public var maxReceivedUnixFds: Int {
+    get { dbus_connection_get_max_received_unix_fds(raw) }
+    set { dbus_connection_set_max_received_unix_fds(raw, newValue) }
   }
 
   public var outgoingSize: Int {
@@ -85,14 +97,6 @@ public class Connection: @unchecked Sendable {
 
   public var outgoingUnixFds: Int {
     dbus_connection_get_outgoing_unix_fds(raw)
-  }
-
-  public var maxReceivedSize: Int {
-    dbus_connection_get_max_received_size(raw)
-  }
-
-  public var maxReceivedUnixFds: Int {
-    dbus_connection_get_max_received_unix_fds(raw)
   }
 
   public func register() throws(DBus.Error) {
@@ -141,13 +145,16 @@ public class Connection: @unchecked Sendable {
     guard let pendingCall = pendingCall else {
       throw .init(
         name: .failed,
-        message: "Connection is disconnected or send Unix file descriptors on a connection that does not support")
+        message:
+          "Connection is disconnected or send Unix file descriptors on a connection that does not support"
+      )
     }
     return PendingCall(pendingCall)
   }
 
   public func sendWithReply(
-    message: Message, timeout: Timeout = .useDefault, onReply: @escaping (Result<Message, DBus.Error>) -> Void
+    message: Message, timeout: Timeout = .useDefault,
+    onReply: @escaping (Result<Message, DBus.Error>) -> Void
   ) throws(DBus.Error) {
     let pendingCall = try sendWithReply(message: message, timeout: timeout)
     try pendingCall.setNotify {
