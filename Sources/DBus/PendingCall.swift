@@ -20,7 +20,7 @@ public class PendingCall {
     Message(dbus_pending_call_steal_reply(raw))
   }
 
-  public func setNotify(_ block: @escaping () -> Void) {
+  public func setNotify(_ block: @escaping () -> Void) throws(DBus.Error) {
     class Ref<T> {
       let value: T
       init(_ value: T) {
@@ -35,7 +35,9 @@ public class PendingCall {
     let freeUserData: DBusFreeFunction = { userData in
       Unmanaged<Ref<() -> Void>>.fromOpaque(userData!).release()
     }
-    dbus_pending_call_set_notify(raw, notification, userData, freeUserData)
+    if dbus_pending_call_set_notify(raw, notification, userData, freeUserData) == 0 {
+      throw .init(name: .noMemory, message: "Failed to set notify")
+    }
   }
 
   public func block() {

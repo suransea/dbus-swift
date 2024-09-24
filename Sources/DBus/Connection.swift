@@ -1,6 +1,6 @@
 import CDBus
 
-public class Connection {
+public class Connection: @unchecked Sendable {
   private let raw: OpaquePointer?
   private let isPrivate: Bool
 
@@ -119,39 +119,60 @@ public class Connection {
     dbus_connection_flush(raw)
   }
 
-  public func canSend(type: ArgumentTypeCode) -> Bool {
+  public func canSend(type: ArgumentType) -> Bool {
     dbus_connection_can_send_type(raw, type.rawValue) != 0
   }
 
-  public func send(message: Message) -> /* serial: */ UInt32? {
+  public func send(message: Message) throws(DBus.Error) -> /* serial: */ UInt32 {
     var serial: UInt32 = 0
     if dbus_connection_send(raw, message.raw, &serial) == 0 {
-      return nil
+      throw .init(name: .noMemory, message: "Failed to send message")
     }
     return serial
   }
 
   public func sendWithReply(
     message: Message, timeout: Timeout = .useDefault
-  ) -> PendingCall? {
+  ) throws(DBus.Error) -> PendingCall {
     var pendingCall: OpaquePointer?
     if dbus_connection_send_with_reply(raw, message.raw, &pendingCall, timeout.rawValue) == 0 {
-      return nil
+      throw .init(name: .noMemory, message: "Failed to send message with reply")
     }
-    return PendingCall(pendingCall!)
+    guard let pendingCall = pendingCall else {
+      throw .init(
+        name: .failed,
+        message: "Connection is disconnected or send Unix file descriptors on a connection that does not support")
+    }
+    return PendingCall(pendingCall)
   }
 
   public func sendWithReply(
-    message: Message, timeout: Timeout = .useDefault, _ block: @escaping (_ reply: Message?) -> Void
-  ) -> Bool {
-    let pendingCall = sendWithReply(message: message, timeout: timeout)
-    guard let pendingCall = pendingCall else {
-      return false
+    message: Message, timeout: Timeout = .useDefault, onReply: @escaping (Result<Message, DBus.Error>) -> Void
+  ) throws(DBus.Error) {
+    let pendingCall = try sendWithReply(message: message, timeout: timeout)
+    try pendingCall.setNotify {
+      let reply = pendingCall.stealReply()!  // must not be nil if the call is complete
+      if let error = reply.error {
+        onReply(.failure(error))
+      } else {
+        onReply(.success(reply))
+      }
     }
-    pendingCall.setNotify {
-      block(pendingCall.stealReply())
+  }
+
+  public func sendWithReply(
+    message: Message, timeout: Timeout = .useDefault
+  ) async throws(DBus.Error) -> Message {
+    let result = await withCheckedContinuation { continuation in
+      do {
+        try sendWithReply(message: message, timeout: timeout) { reply in
+          continuation.resume(returning: reply)
+        }
+      } catch {
+        continuation.resume(returning: Result.failure(error as! DBus.Error))
+      }
     }
-    return true
+    return try result.get()
   }
 
   public func sendWithReplyAndBlock(
@@ -175,14 +196,18 @@ public class Connection {
   ) throws(E) -> R {
     let message = dbus_connection_borrow_message(raw).map(Message.init)
     var steal = false
-    let result = try block(message, &steal)
-    if steal {
-      dbus_connection_steal_borrowed_message(raw, message?.raw)
-    } else {
-      dbus_connection_return_message(raw, message?.raw)
-      message?.raw = nil  // release ownership
+    guard let message else {
+      return try block(nil, &steal)
     }
-    return result
+    defer {
+      if steal {
+        dbus_connection_steal_borrowed_message(raw, message.raw)
+      } else {
+        dbus_connection_return_message(raw, message.raw)
+        message.raw = nil  // release ownership
+      }
+    }
+    return try block(message, &steal)
   }
 }
 

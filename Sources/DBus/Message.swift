@@ -1,6 +1,6 @@
 import CDBus
 
-public class Message {
+public class Message: @unchecked Sendable {
   var raw: OpaquePointer?
 
   init(_ raw: OpaquePointer) {
@@ -119,6 +119,12 @@ public class Message {
     }
   }
 
+  public var error: DBus.Error? {
+    let error = DBusError()
+    dbus_set_error_from_message(&error.raw, raw)
+    return DBus.Error(error)
+  }
+
   public var signature: Signature {
     Signature(rawValue: String(cString: dbus_message_get_signature(raw)))
   }
@@ -159,9 +165,9 @@ public struct MessageIter: BitwiseCopyable {
     }
   }
 
-  public var argumentType: ArgumentTypeCode {
+  public var argumentType: ArgumentType {
     mutating get {
-      ArgumentTypeCode(rawValue: dbus_message_iter_get_arg_type(&raw))!
+      ArgumentType(rawValue: dbus_message_iter_get_arg_type(&raw))!
     }
   }
 
@@ -181,28 +187,47 @@ public struct MessageIter: BitwiseCopyable {
     return sub
   }
 
-  public mutating func append(basic value: inout DBusBasicValue, type: ArgumentTypeCode) -> Bool {
-    dbus_message_iter_append_basic(&raw, type.rawValue, &value) != 0
+  public mutating func append(
+    basic value: inout DBusBasicValue, type: ArgumentType
+  ) throws(DBus.Error) {
+    if dbus_message_iter_append_basic(&raw, type.rawValue, &value) == 0 {
+      throw .init(name: .noMemory, message: "Failed to append basic value")
+    }
   }
 
   public mutating func openContainer(
-    type: ArgumentTypeCode, signature: Signature? = nil
-  ) -> MessageIter {
+    type: ArgumentType, signature: Signature? = nil
+  ) throws(DBus.Error) -> MessageIter {
     var sub = MessageIter()
-    dbus_message_iter_open_container(&raw, type.rawValue, signature?.rawValue, &sub.raw)
+    let success =
+      dbus_message_iter_open_container(&raw, type.rawValue, signature?.rawValue, &sub.raw) != 0
+    guard success else {
+      throw .init(name: .noMemory, message: "Failed to open container")
+    }
     return sub
   }
 
-  public mutating func closeContainer(sub: inout MessageIter) -> Bool {
-    dbus_message_iter_close_container(&raw, &sub.raw) != 0
+  public mutating func closeContainer(_ sub: inout MessageIter) throws(DBus.Error) {
+    if dbus_message_iter_close_container(&raw, &sub.raw) == 0 {
+      throw .init(name: .noMemory, message: "Failed to close container")
+    }
   }
 
-  public mutating func withContainer<E, R>(
-    type: ArgumentTypeCode, signature: Signature? = nil,
-    _ block: (inout MessageIter) throws(E) -> R
-  ) throws(E) -> R {
-    var sub = openContainer(type: type, signature: signature)
-    defer { _ = closeContainer(sub: &sub) }
-    return try block(&sub)
+  public mutating func abondonContainer(_ sub: inout MessageIter) {
+    dbus_message_iter_abandon_container(&raw, &sub.raw)
+  }
+
+  public mutating func abondonContainerIfOpen(_ sub: inout MessageIter) {
+    dbus_message_iter_abandon_container_if_open(&raw, &sub.raw)
+  }
+
+  public mutating func withContainer<R>(
+    type: ArgumentType, signature: Signature? = nil,
+    _ block: (inout MessageIter) throws(DBus.Error) -> R
+  ) throws(DBus.Error) -> R {
+    var sub = try openContainer(type: type, signature: signature)
+    let result = try block(&sub)  // must not close container if block throws an error
+    try closeContainer(&sub)
+    return result
   }
 }

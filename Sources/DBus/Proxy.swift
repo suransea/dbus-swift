@@ -12,11 +12,7 @@ public struct ObjectProxy {
     let message = Message(
       methodCall: (destination: destination, path: path, interface: interface, name: method))
     var messageIter = MessageIter(appending: message)
-    for success in repeat (each arguments).append(to: &messageIter) {
-      guard success else {
-        throw .init(name: .noMemory, message: "Failed to append arguments")
-      }
-    }
+    repeat try (each arguments).append(to: &messageIter)
     let reply = try connection.sendWithReplyAndBlock(message: message, timeout: timeout)
     var replyIter = MessageIter(reading: reply)
     return (repeat (each R).init(from: &replyIter))
