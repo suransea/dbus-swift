@@ -5,7 +5,7 @@ public class Connection: @unchecked Sendable {
   private let isPrivate: Bool
 
   public init(address: String, private: Bool = false) throws(DBus.Error) {
-    let error = DBusError()
+    let error = RawError()
     raw =
       if `private` {
         dbus_connection_open_private(address, &error.raw)
@@ -19,7 +19,7 @@ public class Connection: @unchecked Sendable {
   }
 
   public init(type: BusType, private: Bool = false) throws(DBus.Error) {
-    let error = DBusError()
+    let error = RawError()
     raw =
       if `private` {
         dbus_bus_get_private(DBusBusType(type), &error.raw)
@@ -37,10 +37,6 @@ public class Connection: @unchecked Sendable {
       close()
     }
     dbus_connection_unref(raw)
-  }
-
-  public func close() {
-    dbus_connection_close(raw)
   }
 
   public var uniqueName: String {
@@ -99,19 +95,27 @@ public class Connection: @unchecked Sendable {
     dbus_connection_get_outgoing_unix_fds(raw)
   }
 
+  public func setExitOnDisconnect(_ value: Bool) {
+    dbus_connection_set_exit_on_disconnect(raw, value ? 1 : 0)
+  }
+
+  public func close() {
+    dbus_connection_close(raw)
+  }
+
   public func register() throws(DBus.Error) {
-    let error = DBusError()
+    let error = RawError()
     dbus_bus_register(raw, &error.raw)
     if let error = DBus.Error(error) {
       throw error
     }
   }
 
-  public func readWrite(timeout: Timeout = .useDefault) -> Bool {
+  public func readWrite(timeout: TimeoutInterval = .useDefault) -> Bool {
     dbus_connection_read_write(raw, timeout.rawValue) != 0
   }
 
-  public func readWriteDispatch(timeout: Timeout = .useDefault) -> Bool {
+  public func readWriteDispatch(timeout: TimeoutInterval = .useDefault) -> Bool {
     dbus_connection_read_write_dispatch(raw, timeout.rawValue) != 0
   }
 
@@ -123,7 +127,7 @@ public class Connection: @unchecked Sendable {
     dbus_connection_flush(raw)
   }
 
-  public func canSend(type: ArgumentType) -> Bool {
+  public func can(send type: ArgumentType) -> Bool {
     dbus_connection_can_send_type(raw, type.rawValue) != 0
   }
 
@@ -136,7 +140,7 @@ public class Connection: @unchecked Sendable {
   }
 
   public func sendWithReply(
-    message: Message, timeout: Timeout = .useDefault
+    message: Message, timeout: TimeoutInterval = .useDefault
   ) throws(DBus.Error) -> PendingCall {
     var pendingCall: OpaquePointer?
     if dbus_connection_send_with_reply(raw, message.raw, &pendingCall, timeout.rawValue) == 0 {
@@ -153,22 +157,23 @@ public class Connection: @unchecked Sendable {
   }
 
   public func sendWithReply(
-    message: Message, timeout: Timeout = .useDefault,
-    onReply: @escaping (Result<Message, DBus.Error>) -> Void
+    message: Message, timeout: TimeoutInterval = .useDefault,
+    replyHandler: @escaping (Result<Message, DBus.Error>) -> Void
   ) throws(DBus.Error) {
     let pendingCall = try sendWithReply(message: message, timeout: timeout)
-    try pendingCall.setNotify {
+    try pendingCall.setCompletionHandler {
       let reply = pendingCall.stealReply()!  // must not be nil if the call is complete
       if let error = reply.error {
-        onReply(.failure(error))
+        replyHandler(.failure(error))
       } else {
-        onReply(.success(reply))
+        replyHandler(.success(reply))
       }
     }
   }
 
+  @available(macOS 10.15.0, *)
   public func sendWithReply(
-    message: Message, timeout: Timeout = .useDefault
+    message: Message, timeout: TimeoutInterval = .useDefault
   ) async throws(DBus.Error) -> Message {
     let result = await withCheckedContinuation { continuation in
       do {
@@ -183,9 +188,9 @@ public class Connection: @unchecked Sendable {
   }
 
   public func sendWithReplyAndBlock(
-    message: Message, timeout: Timeout = .useDefault
+    message: Message, timeout: TimeoutInterval = .useDefault
   ) throws(DBus.Error) -> Message {
-    let error = DBusError()
+    let error = RawError()
     let reply = dbus_connection_send_with_reply_and_block(
       raw, message.raw, timeout.rawValue, &error.raw)
     if let error = DBus.Error(error) {
@@ -198,23 +203,73 @@ public class Connection: @unchecked Sendable {
     dbus_connection_pop_message(raw).map(Message.init)
   }
 
-  public func borrowMessage<E, R>(
-    _ block: (Message?, _ steal: inout Bool) throws(E) -> R
+  public func withBorrowedMessage<E, R>(
+    _ block: (Message?, _ consumed: inout Bool) throws(E) -> R
   ) throws(E) -> R {
     let message = dbus_connection_borrow_message(raw).map(Message.init)
-    var steal = false
+    var consumed = false
     guard let message else {
-      return try block(nil, &steal)
+      return try block(nil, &consumed)
     }
     defer {
-      if steal {
+      if consumed {
         dbus_connection_steal_borrowed_message(raw, message.raw)
       } else {
         dbus_connection_return_message(raw, message.raw)
         message.raw = nil  // release ownership
       }
     }
-    return try block(message, &steal)
+    return try block(message, &consumed)
+  }
+
+  public func setWatchDelegate(_ delegate: any WatchDelegate) -> Bool {
+    let userData = Unmanaged.passRetained(delegate as AnyObject).toOpaque()
+    return dbus_connection_set_watch_functions(
+      raw,
+      { watch, userData in
+        let delegate =
+          Unmanaged<AnyObject>.fromOpaque(userData!).takeUnretainedValue() as! WatchDelegate
+        return delegate.add(watch: Watch(watch!)) ? 1 : 0
+      },
+      { watch, userData in
+        let delegate =
+          Unmanaged<AnyObject>.fromOpaque(userData!).takeUnretainedValue() as! WatchDelegate
+        delegate.remove(watch: Watch(watch!))
+      },
+      { watch, userData in
+        let delegate =
+          Unmanaged<AnyObject>.fromOpaque(userData!).takeUnretainedValue() as! WatchDelegate
+        delegate.onToggled(watch: Watch(watch!))
+      },
+      userData,
+      { userData in
+        Unmanaged<AnyObject>.fromOpaque(userData!).release()
+      }) != 0
+  }
+
+  public func setTimeoutDelegate(_ delegate: any TimeoutDelegate) -> Bool {
+    let userData = Unmanaged.passRetained(delegate as AnyObject).toOpaque()
+    return dbus_connection_set_timeout_functions(
+      raw,
+      { timeout, userData in
+        let delegate =
+          Unmanaged<AnyObject>.fromOpaque(userData!).takeUnretainedValue() as! TimeoutDelegate
+        return delegate.add(timeout: Timeout(timeout!)) ? 1 : 0
+      },
+      { timeout, userData in
+        let delegate =
+          Unmanaged<AnyObject>.fromOpaque(userData!).takeUnretainedValue() as! TimeoutDelegate
+        delegate.remove(timeout: Timeout(timeout!))
+      },
+      { timeout, userData in
+        let delegate =
+          Unmanaged<AnyObject>.fromOpaque(userData!).takeUnretainedValue() as! TimeoutDelegate
+        delegate.onToggled(timeout: Timeout(timeout!))
+      },
+      userData,
+      { userData in
+        Unmanaged<AnyObject>.fromOpaque(userData!).release()
+      }) != 0
   }
 }
 
@@ -227,22 +282,5 @@ public enum DispatchStatus: UInt32 {
 extension DispatchStatus {
   init(_ status: DBusDispatchStatus) {
     self.init(rawValue: status.rawValue)!
-  }
-}
-
-public struct Timeout: Sendable, Equatable, Hashable, RawRepresentable {
-  public let rawValue: Int32
-
-  public init(rawValue: Int32) {
-    self.rawValue = rawValue
-  }
-}
-
-extension Timeout {
-  public static let useDefault = Timeout(rawValue: DBUS_TIMEOUT_USE_DEFAULT)
-  public static let infinite = Timeout(rawValue: DBUS_TIMEOUT_INFINITE)
-
-  public static func milliseconds(_ milliseconds: Int32) -> Timeout {
-    Timeout(rawValue: milliseconds)
   }
 }

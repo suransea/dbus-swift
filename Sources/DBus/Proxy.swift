@@ -4,7 +4,7 @@ public struct ObjectProxy {
   let connection: Connection
   let destination: BusName
   let path: ObjectPath
-  let timeout: Timeout = .useDefault
+  let timeout: TimeoutInterval = .useDefault
 
   public func call<each T: Argument, each R: Argument>(
     method: Member, of interface: Interface, arguments: repeat each T
@@ -30,7 +30,7 @@ public struct InterfaceProxy {
   }
 
   public subscript(dynamicMember member: Member) -> MemberProxy {
-    MemberProxy(objectProxy: objectProxy, interface: interface, member: member)
+    .init(objectProxy: objectProxy, interface: interface, member: member)
   }
 }
 

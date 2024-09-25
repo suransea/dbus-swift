@@ -1,17 +1,8 @@
 import CDBus
-import Foundation
 
 public struct Error: Swift.Error, Equatable, Hashable {
   public let name: ErrorName
   public let message: String
-}
-
-extension Error {
-  init?(_ error: DBusError) {
-    guard error.isSet else { return nil }
-    name = ErrorName(rawValue: error.name)
-    message = error.message
-  }
 }
 
 extension Error: CustomStringConvertible {
@@ -148,11 +139,11 @@ extension ErrorName {
   public static let notContainer = ErrorName(rawValue: DBUS_ERROR_NOT_CONTAINER)
 }
 
-class DBusError {
-  var raw: CDBus.DBusError
+class RawError {
+  var raw: DBusError
 
   init() {
-    raw = CDBus.DBusError()
+    raw = DBusError()
     dbus_error_init(&raw)
   }
 
@@ -172,7 +163,15 @@ class DBusError {
     dbus_error_is_set(&raw) != 0
   }
 
-  func hasName(_ name: String) -> Bool {
+  func has(name: String) -> Bool {
     dbus_error_has_name(&raw, name) != 0
+  }
+}
+
+extension Error {
+  init?(_ error: RawError) {
+    guard error.isSet else { return nil }
+    name = ErrorName(rawValue: error.name)
+    message = error.message
   }
 }

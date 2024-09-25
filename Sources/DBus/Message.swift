@@ -84,7 +84,7 @@ public class Message: @unchecked Sendable {
   }
 
   public var error: DBus.Error? {
-    let error = DBusError()
+    let error = RawError()
     dbus_set_error_from_message(&error.raw, raw)
     return DBus.Error(error)
   }

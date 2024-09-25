@@ -70,7 +70,7 @@ public protocol Argument {
 extension Argument {
   /// For basic types, the signature is the type code.
   public static var signature: Signature {
-    Signature(rawValue: String(UnicodeScalar(UInt32(type.rawValue))!))
+    .init(rawValue: String(UnicodeScalar(UInt32(type.rawValue))!))
   }
 }
 
@@ -317,10 +317,12 @@ extension Variant: Argument {
   }
 }
 
+@available(macOS 14.0.0, *)
 public struct Struct<each T: Argument> {
   public let values: (repeat each T)
 }
 
+@available(macOS 14.0.0, *)
 extension Struct: Argument {
   public static var type: ArgumentType { .struct }
 

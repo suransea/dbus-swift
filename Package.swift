@@ -5,9 +5,6 @@ import PackageDescription
 
 let package = Package(
   name: "DBus",
-  platforms: [
-    .macOS(.v14)
-  ],
   products: [
     // Products define the executables and libraries a package produces, making them visible to other packages.
     .library(
@@ -190,7 +187,7 @@ struct CDBusVendored {
     .define("HAVE_UNIX_FD_PASSING", to: "1"),
     .define("DBUS_USE_SYNC", to: "1"),
     .define("DBUS_SESSION_BUS_CONNECT_ADDRESS", to: "\"autolaunch:\""),
-    .define("DBUS_SYSTEM_BUS_DEFAULT_ADDRESS", to: "\"unix:path=/run/dbus/system_bus_socket\""),
+    .define("DBUS_SYSTEM_BUS_DEFAULT_ADDRESS", to: "\"unix:path=/var/run/dbus/system_bus_socket\""),
     .define("DBUS_DATADIR", to: "\"/usr/share\""),
     .define("DBUS_SYSTEM_CONFIG_FILE", to: "\"/usr/share/dbus-1/system.conf\""),
     .define("DBUS_SESSION_CONFIG_FILE", to: "\"/usr/share/dbus-1/session.conf\""),
