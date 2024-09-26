@@ -59,6 +59,14 @@ public class Connection: @unchecked Sendable {
     String(cString: dbus_connection_get_server_id(raw))
   }
 
+  public var userId: UInt? {
+    var uid: UInt = 0
+    if dbus_connection_get_unix_user(raw, &uid) == 0 {
+      return nil
+    }
+    return uid
+  }
+
   public var dispatchStatus: DispatchStatus {
     DispatchStatus(dbus_connection_get_dispatch_status(raw))
   }
@@ -72,7 +80,7 @@ public class Connection: @unchecked Sendable {
     set { dbus_connection_set_max_message_size(raw, newValue) }
   }
 
-  public var maxMessageUnixFds: Int {
+  public var maxMessageFileDescriptors: Int {
     get { dbus_connection_get_max_message_unix_fds(raw) }
     set { dbus_connection_set_max_message_unix_fds(raw, newValue) }
   }
@@ -82,7 +90,7 @@ public class Connection: @unchecked Sendable {
     set { dbus_connection_set_max_received_size(raw, newValue) }
   }
 
-  public var maxReceivedUnixFds: Int {
+  public var maxReceivedFileDescriptors: Int {
     get { dbus_connection_get_max_received_unix_fds(raw) }
     set { dbus_connection_set_max_received_unix_fds(raw, newValue) }
   }
@@ -91,12 +99,16 @@ public class Connection: @unchecked Sendable {
     dbus_connection_get_outgoing_size(raw)
   }
 
-  public var outgoingUnixFds: Int {
+  public var outgoingFileDescriptors: Int {
     dbus_connection_get_outgoing_unix_fds(raw)
   }
 
   public func setExitOnDisconnect(_ value: Bool) {
     dbus_connection_set_exit_on_disconnect(raw, value ? 1 : 0)
+  }
+
+  public func setAllowAnonymous(_ value: Bool) {
+    dbus_connection_set_allow_anonymous(raw, value ? 1 : 0)
   }
 
   public func close() {
@@ -127,7 +139,7 @@ public class Connection: @unchecked Sendable {
     dbus_connection_flush(raw)
   }
 
-  public func can(send type: ArgumentType) -> Bool {
+  public func canSend(type: ArgumentType) -> Bool {
     dbus_connection_can_send_type(raw, type.rawValue) != 0
   }
 
@@ -158,15 +170,15 @@ public class Connection: @unchecked Sendable {
 
   public func sendWithReply(
     message: Message, timeout: TimeoutInterval = .useDefault,
-    replyHandler: @escaping (Result<Message, DBus.Error>) -> Void
+    completion: @escaping (Result<Message, DBus.Error>) -> Void
   ) throws(DBus.Error) {
     let pendingCall = try sendWithReply(message: message, timeout: timeout)
     try pendingCall.setCompletionHandler {
       let reply = pendingCall.stealReply()!  // must not be nil if the call is complete
       if let error = reply.error {
-        replyHandler(.failure(error))
+        completion(.failure(error))
       } else {
-        replyHandler(.success(reply))
+        completion(.success(reply))
       }
     }
   }
@@ -271,16 +283,32 @@ public class Connection: @unchecked Sendable {
         Unmanaged<AnyObject>.fromOpaque(userData!).release()
       }) != 0
   }
-}
 
-public enum DispatchStatus: UInt32 {
-  case dataRemains
-  case complete
-  case needMemory
-}
+  public func setDispatchStatusHandler(_ handler: @escaping (DispatchStatus) -> Void) {
+    let userData = Unmanaged.passRetained(handler as AnyObject).toOpaque()
+    dbus_connection_set_dispatch_status_function(
+      raw,
+      { connection, status, userData in
+        let callback = Unmanaged<AnyObject>.fromOpaque(userData!).takeUnretainedValue()
+        (callback as! (DispatchStatus) -> Void)(DispatchStatus(status))
+      },
+      userData,
+      { userData in
+        Unmanaged<AnyObject>.fromOpaque(userData!).release()
+      })
+  }
 
-extension DispatchStatus {
-  init(_ status: DBusDispatchStatus) {
-    self.init(rawValue: status.rawValue)!
+  public func setWakeUpHandler(_ handler: @escaping () -> Void) {
+    let userData = Unmanaged.passRetained(handler as AnyObject).toOpaque()
+    dbus_connection_set_wakeup_main_function(
+      raw,
+      { userData in
+        let callback = Unmanaged<AnyObject>.fromOpaque(userData!).takeUnretainedValue()
+        (callback as! () -> Void)()
+      },
+      userData,
+      { userData in
+        Unmanaged<AnyObject>.fromOpaque(userData!).release()
+      })
   }
 }

@@ -1,4 +1,6 @@
 import CDBus
+import Dispatch
+import Foundation
 
 public struct TimeoutInterval: Sendable, Equatable, Hashable, RawRepresentable {
   public let rawValue: Int32
@@ -31,7 +33,7 @@ extension TimeoutInterval {
   }
 }
 
-public struct Timeout {
+public struct Timeout: Hashable, @unchecked Sendable {
   let raw: OpaquePointer
 
   init(_ raw: OpaquePointer) {
@@ -46,13 +48,81 @@ public struct Timeout {
     dbus_timeout_get_enabled(raw) != 0
   }
 
-  public func handle() {
-    dbus_timeout_handle(raw)
+  public func handle() -> Bool {
+    dbus_timeout_handle(raw) != 0
   }
 }
 
-public protocol TimeoutDelegate {
+public protocol TimeoutDelegate: AnyObject {
   func add(timeout: Timeout) -> Bool
   func remove(timeout: Timeout)
   func onToggled(timeout: Timeout)
+}
+
+public class RunLoopTimer: TimeoutDelegate {
+  private let runLoop: RunLoop
+  private var timers: [Timeout: Timer] = [:]
+
+  public init(runLoop: RunLoop) {
+    self.runLoop = runLoop
+  }
+
+  public func add(timeout: Timeout) -> Bool {
+    let interval = timeout.interval.rawValue
+    let timer = Timer(timeInterval: Double(interval) / 1000, repeats: false) { timer in
+      _ = timeout.handle()
+    }
+    RunLoop.main.add(timer, forMode: .default)
+    timers[timeout] = timer
+    return true
+  }
+
+  public func remove(timeout: Timeout) {
+    if let timer = timers.removeValue(forKey: timeout) {
+      timer.invalidate()
+    }
+  }
+
+  public func onToggled(timeout: Timeout) {
+    if timeout.isEnabled {
+      _ = add(timeout: timeout)
+    } else {
+      remove(timeout: timeout)
+    }
+  }
+}
+
+public class DispatchQueueTimer: TimeoutDelegate {
+  private let queue: DispatchQueue
+  private var timers: [Timeout: DispatchSourceTimer] = [:]
+
+  public init(queue: DispatchQueue) {
+    self.queue = queue
+  }
+
+  public func add(timeout: Timeout) -> Bool {
+    let interval = timeout.interval.rawValue
+    let timer = DispatchSource.makeTimerSource(queue: queue)
+    timer.schedule(deadline: .now() + .milliseconds(Int(interval)))
+    timer.setEventHandler {
+      _ = timeout.handle()
+    }
+    timer.activate()
+    timers[timeout] = timer
+    return true
+  }
+
+  public func remove(timeout: Timeout) {
+    if let timer = timers.removeValue(forKey: timeout) {
+      timer.cancel()
+    }
+  }
+
+  public func onToggled(timeout: Timeout) {
+    if timeout.isEnabled {
+      _ = add(timeout: timeout)
+    } else {
+      remove(timeout: timeout)
+    }
+  }
 }

@@ -1,6 +1,8 @@
 import CDBus
+import Dispatch
+import Foundation
 
-public struct Watch {
+public struct Watch: Hashable {
   let raw: OpaquePointer
 
   init(_ raw: OpaquePointer) {
@@ -23,8 +25,8 @@ public struct Watch {
     dbus_watch_get_enabled(raw) != 0
   }
 
-  public func handle(_ flags: WatchFlags) {
-    dbus_watch_handle(raw, flags.rawValue)
+  public func handle(_ flags: WatchFlags) -> Bool {
+    dbus_watch_handle(raw, flags.rawValue) != 0
   }
 }
 
@@ -45,4 +47,126 @@ public protocol WatchDelegate {
   func add(watch: Watch) -> Bool
   func remove(watch: Watch)
   func onToggled(watch: Watch)
+}
+
+private typealias Dispose = () -> Void
+
+public class RunLoopWatcher: WatchDelegate {
+  private let runLoop: CFRunLoop
+  private let dispatcher: () -> Void
+  private var watches: [Watch: Dispose] = [:]
+
+  public init(runLoop: RunLoop, dispatcher: @escaping () -> Void) {
+    self.runLoop = runLoop.getCFRunLoop()
+    self.dispatcher = dispatcher
+  }
+
+  public func add(watch: Watch) -> Bool {
+    let handleWatch = { (flags: WatchFlags) in
+      _ = watch.handle(flags)
+      self.dispatcher()
+    }
+    let userInfo = Unmanaged.passRetained(handleWatch as AnyObject).toOpaque()
+    var context = CFFileDescriptorContext(
+      version: 0, info: userInfo,
+      retain: { info in
+        Unmanaged<AnyObject>.fromOpaque(info!).retain().toOpaque()
+      },
+      release: { info in
+        Unmanaged<AnyObject>.fromOpaque(info!).release()
+      },
+      copyDescription: nil)
+    let callback: CFFileDescriptorCallBack = { fd, flags, info in
+      let handleWatch = Unmanaged<AnyObject>.fromOpaque(info!).takeUnretainedValue()
+      var watchFlags = WatchFlags()
+      if flags & kCFFileDescriptorReadCallBack != 0 {
+        watchFlags.insert(.readable)
+      }
+      if flags & kCFFileDescriptorWriteCallBack != 0 {
+        watchFlags.insert(.writable)
+      }
+      (handleWatch as! (WatchFlags) -> Void)(watchFlags)
+    }
+    let fd = CFFileDescriptorCreate(
+      kCFAllocatorDefault, watch.fileDescriptor, false, callback, &context)
+    var cfFlags = CFOptionFlags()
+    if watch.flags.contains(.readable) {
+      cfFlags |= kCFFileDescriptorReadCallBack
+    }
+    if watch.flags.contains(.writable) {
+      cfFlags |= kCFFileDescriptorWriteCallBack
+    }
+    CFFileDescriptorEnableCallBacks(fd, cfFlags)
+    let source = CFFileDescriptorCreateRunLoopSource(kCFAllocatorDefault, fd, 0)
+    CFRunLoopAddSource(runLoop, source, .defaultMode)
+    watches[watch] = {
+      CFRunLoopRemoveSource(self.runLoop, source, .defaultMode)
+      CFFileDescriptorInvalidate(fd)
+    }
+    return true
+  }
+
+  public func remove(watch: Watch) {
+    watches.removeValue(forKey: watch)?()
+  }
+
+  public func onToggled(watch: Watch) {
+    if watch.isEnabled {
+      _ = add(watch: watch)
+    } else {
+      remove(watch: watch)
+    }
+  }
+}
+
+public class DispatchQueueWatcher: WatchDelegate {
+  private let queue: DispatchQueue
+  private let dispatcher: () -> Void
+  private var watches: [Watch: Dispose] = [:]
+
+  public init(queue: DispatchQueue, dispatcher: @escaping () -> Void) {
+    self.queue = queue
+    self.dispatcher = dispatcher
+  }
+
+  public func add(watch: Watch) -> Bool {
+    var source: (read: DispatchSourceRead?, write: DispatchSourceWrite?) = (nil, nil)
+    if watch.flags.contains(.readable) {
+      let read = DispatchSource.makeReadSource(
+        fileDescriptor: watch.fileDescriptor, queue: queue)
+      read.setEventHandler {
+        _ = watch.handle(.readable)
+        self.dispatcher()
+      }
+      read.activate()
+      source.read = read
+    }
+    if watch.flags.contains(.writable) {
+      let write = DispatchSource.makeWriteSource(
+        fileDescriptor: watch.fileDescriptor, queue: queue)
+      write.setEventHandler {
+        _ = watch.handle(.writable)
+        self.dispatcher()
+      }
+      write.activate()
+      source.write = write
+    }
+    watches[watch] = {
+      source.read?.cancel()
+      source.write?.cancel()
+    }
+    return true
+  }
+
+  public func remove(watch: Watch) {
+    watches.removeValue(forKey: watch)?()
+  }
+
+  public func onToggled(watch: Watch) {
+    if watch.isEnabled {
+      _ = add(watch: watch)
+    } else {
+      remove(watch: watch)
+    }
+  }
 }
