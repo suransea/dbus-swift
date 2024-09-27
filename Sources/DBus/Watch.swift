@@ -25,8 +25,10 @@ public struct Watch: Hashable {
     dbus_watch_get_enabled(raw) != 0
   }
 
-  public func handle(_ flags: WatchFlags) -> Bool {
-    dbus_watch_handle(raw, flags.rawValue) != 0
+  public func handle(_ flags: WatchFlags) throws(DBus.Error) {
+    guard dbus_watch_handle(raw, flags.rawValue) != 0 else {
+      throw .init(name: .noMemory, message: "Failed to handle watch")
+    }
   }
 }
 
@@ -63,8 +65,12 @@ public class RunLoopWatcher: WatchDelegate {
 
   public func add(watch: Watch) -> Bool {
     let handleWatch = { (flags: WatchFlags) in
-      _ = watch.handle(flags)
-      self.dispatcher()
+      do {
+        try watch.handle(flags)
+      } catch {
+        perror("[dbus] RunLoopWatcher: \(error)")
+      }
+      self.dispatcher()  // call the dispatcher even if the watch failed
     }
     let userInfo = Unmanaged.passRetained(handleWatch as AnyObject).toOpaque()
     var context = CFFileDescriptorContext(
@@ -135,7 +141,11 @@ public class DispatchQueueWatcher: WatchDelegate {
       let read = DispatchSource.makeReadSource(
         fileDescriptor: watch.fileDescriptor, queue: queue)
       read.setEventHandler {
-        _ = watch.handle(.readable)
+        do {
+          try watch.handle(.readable)
+        } catch {
+          perror("[dbus] DispatchQueueWatcher: \(error)")
+        }
         self.dispatcher()
       }
       read.activate()
@@ -145,7 +155,11 @@ public class DispatchQueueWatcher: WatchDelegate {
       let write = DispatchSource.makeWriteSource(
         fileDescriptor: watch.fileDescriptor, queue: queue)
       write.setEventHandler {
-        _ = watch.handle(.writable)
+        do {
+          try watch.handle(.writable)
+        } catch {
+          perror("[dbus] DispatchQueueWatcher: \(error)")
+        }
         self.dispatcher()
       }
       write.activate()

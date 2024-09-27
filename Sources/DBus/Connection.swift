@@ -234,9 +234,9 @@ public class Connection: @unchecked Sendable {
     return try block(message, &consumed)
   }
 
-  public func setWatchDelegate(_ delegate: any WatchDelegate) -> Bool {
+  public func setWatchDelegate(_ delegate: any WatchDelegate) throws(DBus.Error) {
     let userData = Unmanaged.passRetained(delegate as AnyObject).toOpaque()
-    return dbus_connection_set_watch_functions(
+    let result = dbus_connection_set_watch_functions(
       raw,
       { watch, userData in
         let delegate =
@@ -256,12 +256,15 @@ public class Connection: @unchecked Sendable {
       userData,
       { userData in
         Unmanaged<AnyObject>.fromOpaque(userData!).release()
-      }) != 0
+      })
+    guard result != 0 else {
+      throw .init(name: .noMemory, message: "Failed to set watch delegate")
+    }
   }
 
-  public func setTimeoutDelegate(_ delegate: any TimeoutDelegate) -> Bool {
+  public func setTimeoutDelegate(_ delegate: any TimeoutDelegate) throws(DBus.Error) {
     let userData = Unmanaged.passRetained(delegate as AnyObject).toOpaque()
-    return dbus_connection_set_timeout_functions(
+    let result = dbus_connection_set_timeout_functions(
       raw,
       { timeout, userData in
         let delegate =
@@ -281,7 +284,10 @@ public class Connection: @unchecked Sendable {
       userData,
       { userData in
         Unmanaged<AnyObject>.fromOpaque(userData!).release()
-      }) != 0
+      })
+    guard result != 0 else {
+      throw .init(name: .noMemory, message: "Failed to set timeout delegate")
+    }
   }
 
   public func setDispatchStatusHandler(_ handler: @escaping (DispatchStatus) -> Void) {
@@ -310,5 +316,39 @@ public class Connection: @unchecked Sendable {
       { userData in
         Unmanaged<AnyObject>.fromOpaque(userData!).release()
       })
+  }
+
+  public typealias RemoveFilter = () -> Void
+
+  public func addFilter(_ filter: (Message) -> HandlerResult) throws(DBus.Error) -> RemoveFilter {
+    let userData = Unmanaged.passRetained(filter as AnyObject).toOpaque()
+    let filterFunction: DBusHandleMessageFunction = { connection, message, userData in
+      let filter = Unmanaged<AnyObject>.fromOpaque(userData!).takeUnretainedValue()
+      dbus_message_ref(message)
+      let message = Message(message!)
+      return DBusHandlerResult((filter as! (Message) -> HandlerResult)(message).rawValue)
+    }
+    let freeFunction: DBusFreeFunction = { userData in
+      Unmanaged<AnyObject>.fromOpaque(userData!).release()
+    }
+    let result = dbus_connection_add_filter(raw, filterFunction, userData, freeFunction)
+    guard result != 0 else {
+      throw .init(name: .noMemory, message: "Failed to add filter")
+    }
+    return {
+      dbus_connection_remove_filter(self.raw, filterFunction, userData)
+    }
+  }
+}
+
+public enum HandlerResult: UInt32 {
+  case handled
+  case notYet
+  case needMemory
+}
+
+extension HandlerResult {
+  init(_ result: DBusHandlerResult) {
+    self.init(rawValue: result.rawValue)!
   }
 }

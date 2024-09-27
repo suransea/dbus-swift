@@ -12,7 +12,7 @@ public class Message: @unchecked Sendable {
   }
 
   public init(
-    methodCall: (destination: BusName, path: ObjectPath, interface: Interface, name: Member)
+    methodCall: (destination: BusName, path: ObjectPath, interface: InterfaceName, name: MemberName)
   ) {
     raw = dbus_message_new_method_call(
       methodCall.destination, methodCall.path.rawValue, methodCall.interface, methodCall.name)
@@ -26,7 +26,7 @@ public class Message: @unchecked Sendable {
     raw = dbus_message_new_error(error.replyTo.raw, error.name.rawValue, error.message)
   }
 
-  public init(signal: (path: ObjectPath, interface: Interface, name: Member)) {
+  public init(signal: (path: ObjectPath, interface: InterfaceName, name: MemberName)) {
     raw = dbus_message_new_signal(signal.path.rawValue, signal.interface, signal.name)
   }
 
@@ -68,12 +68,12 @@ public class Message: @unchecked Sendable {
     set { dbus_message_set_path(raw, newValue?.rawValue) }
   }
 
-  public var interface: Interface? {
+  public var interface: InterfaceName? {
     get { dbus_message_get_interface(raw).map(String.init(cString:)) }
     set { dbus_message_set_interface(raw, newValue) }
   }
 
-  public var member: Member? {
+  public var member: MemberName? {
     get { dbus_message_get_member(raw).map(String.init(cString:)) }
     set { dbus_message_set_member(raw, newValue) }
   }

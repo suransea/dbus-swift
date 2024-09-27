@@ -51,8 +51,8 @@ extension ErrorName {
   /// Unable to connect to server (probably caused by ECONNREFUSED on a socket).
   public static let noServer = ErrorName(rawValue: DBUS_ERROR_NO_SERVER)
   /// Certain timeout errors, possibly ETIMEDOUT on a socket.
-  /// Note that #DBUS_ERROR_NO_REPLY is used for message reply timeouts.
-  /// @warning this is confusingly-named given that #DBUS_ERROR_TIMED_OUT also exists. We can't fix
+  /// Note that `DBUS_ERROR_NO_REPLY` is used for message reply timeouts.
+  /// @warning this is confusingly-named given that `DBUS_ERROR_TIMED_OUT` also exists. We can't fix
   /// it for compatibility reasons so just be careful.
   public static let timeout = ErrorName(rawValue: DBUS_ERROR_TIMEOUT)
   /// No network access (probably ENETUNREACH on a socket).
@@ -163,7 +163,7 @@ class RawError {
     dbus_error_is_set(&raw) != 0
   }
 
-  func has(name: String) -> Bool {
+  func hasName(_ name: String) -> Bool {
     dbus_error_has_name(&raw, name) != 0
   }
 }

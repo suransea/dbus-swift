@@ -14,6 +14,4 @@ extension DBusBusType {
 
 public typealias BusName = String
 
-public typealias Interface = String
-
-public typealias Member = String
+public typealias MemberName = String

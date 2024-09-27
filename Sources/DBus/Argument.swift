@@ -1,7 +1,6 @@
 import CDBus
 
-/// D-Bus message argument type.
-/// See the [D-Bus specification](https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-marshaling)
+/// D-Bus message argument type, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-marshaling
 public enum ArgumentType: Int32 {
   /// Type code that is never equal to a legitimate type code
   case invalid = 0
@@ -53,7 +52,22 @@ public enum ArgumentType: Int32 {
   case dictEntry = 101  // 'e'
 }
 
+extension ArgumentType {
+  /// If the type is a basic type.
+  public var isBasic: Bool {
+    dbus_type_is_basic(rawValue) != 0
+  }
+
+  /// If the type is a container type.
+  public var isContainer: Bool {
+    dbus_type_is_container(rawValue) != 0
+  }
+}
+
 /// D-Bus message argument.
+///
+/// It's necessary to implement this protocol for custom types,
+/// which using in D-Bus method arguments/returns.
 public protocol Argument {
   /// The type of the argument.
   static var type: ArgumentType { get }
@@ -61,9 +75,13 @@ public protocol Argument {
   static var signature: Signature { get }
 
   /// Read the argument from the message iterator.
+  ///
+  /// Parameter iter: The message iterator to read from.
   init(from iter: inout MessageIter)
 
   /// Append the argument to the message iterator.
+  ///
+  /// Parameter iter: The message iterator to append to.
   func append(to iter: inout MessageIter) throws(DBus.Error)
 }
 
@@ -206,6 +224,7 @@ extension String: Argument {
   }
 }
 
+/// D-Bus object path, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-marshaling-object-path
 public struct ObjectPath: Sendable, Equatable, Hashable, RawRepresentable {
   public let rawValue: String
 
@@ -229,6 +248,7 @@ extension ObjectPath: Argument {
   }
 }
 
+/// D-Bus type signature, see https://dbus.freedesktop.org/doc/dbus-specification.html#type-system
 public struct Signature: Sendable, Equatable, Hashable, RawRepresentable {
   public let rawValue: String
 
@@ -252,6 +272,7 @@ extension Signature: Argument {
   }
 }
 
+/// Unix file descriptor.
 public struct FileDescriptor: Sendable, Equatable, Hashable, RawRepresentable {
   public let rawValue: Int32
 
@@ -314,6 +335,22 @@ extension Variant: Argument {
     try iter.withContainer(type: .variant, signature: T.signature) { subIter throws(DBus.Error) in
       try value.append(to: &subIter)
     }
+  }
+}
+
+public struct AnyVariant {
+  public let messageIter: MessageIter
+}
+
+extension AnyVariant: Argument {
+  public static var type: ArgumentType { .variant }
+
+  public init(from iter: inout MessageIter) {
+    messageIter = iter.iterateRecurse()
+  }
+
+  public func append(to iter: inout MessageIter) throws(DBus.Error) {
+    fatalError("Not implemented")
   }
 }
 

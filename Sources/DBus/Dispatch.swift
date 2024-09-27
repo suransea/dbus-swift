@@ -15,7 +15,7 @@ extension DispatchStatus {
 }
 
 extension Connection {
-  public func setupDispatch(with runLoop: RunLoop) -> Bool {
+  public func setupDispatch(with runLoop: RunLoop) throws(DBus.Error) {
     let dispatchRemains = {
       runLoop.perform {
         while self.dispatch() == .dataRemains {}
@@ -30,12 +30,11 @@ extension Connection {
     setWakeUpHandler {
       CFRunLoopWakeUp(CFRunLoopGetMain())
     }
-    let watchDelegate = RunLoopWatcher(runLoop: runLoop, dispatcher: dispatchRemains)
-    let timeoutDelegate = RunLoopTimer(runLoop: runLoop)
-    return setWatchDelegate(watchDelegate) && setTimeoutDelegate(timeoutDelegate)
+    try setWatchDelegate(RunLoopWatcher(runLoop: runLoop, dispatcher: dispatchRemains))
+    try setTimeoutDelegate(RunLoopTimer(runLoop: runLoop))
   }
 
-  public func setupDispatch(with queue: DispatchQueue) -> Bool {
+  public func setupDispatch(with queue: DispatchQueue) throws(DBus.Error) {
     let dispatchRemains = {
       queue.async {
         while self.dispatch() == .dataRemains {}
@@ -46,8 +45,7 @@ extension Connection {
         dispatchRemains()
       }
     }
-    let watchDelegate = DispatchQueueWatcher(queue: queue, dispatcher: dispatchRemains)
-    let timeoutDelegate = DispatchQueueTimer(queue: queue)
-    return setWatchDelegate(watchDelegate) && setTimeoutDelegate(timeoutDelegate)
+    try setWatchDelegate(DispatchQueueWatcher(queue: queue, dispatcher: dispatchRemains))
+    try setTimeoutDelegate(DispatchQueueTimer(queue: queue))
   }
 }

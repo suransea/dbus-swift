@@ -48,8 +48,10 @@ public struct Timeout: Hashable, @unchecked Sendable {
     dbus_timeout_get_enabled(raw) != 0
   }
 
-  public func handle() -> Bool {
-    dbus_timeout_handle(raw) != 0
+  public func handle() throws(DBus.Error) {
+    guard dbus_timeout_handle(raw) != 0 else {
+      throw .init(name: .noMemory, message: "Failed to handle timeout")
+    }
   }
 }
 
@@ -70,7 +72,11 @@ public class RunLoopTimer: TimeoutDelegate {
   public func add(timeout: Timeout) -> Bool {
     let interval = timeout.interval.rawValue
     let timer = Timer(timeInterval: Double(interval) / 1000, repeats: false) { timer in
-      _ = timeout.handle()
+      do {
+        try timeout.handle()
+      } catch {
+        perror("[dbus]: RunLoopTimer: \(error)")
+      }
     }
     RunLoop.main.add(timer, forMode: .default)
     timers[timeout] = timer
@@ -105,7 +111,11 @@ public class DispatchQueueTimer: TimeoutDelegate {
     let timer = DispatchSource.makeTimerSource(queue: queue)
     timer.schedule(deadline: .now() + .milliseconds(Int(interval)))
     timer.setEventHandler {
-      _ = timeout.handle()
+      do {
+        try timeout.handle()
+      } catch {
+        perror("[dbus]: DispatchQueueTimer: \(error)")
+      }
     }
     timer.activate()
     timers[timeout] = timer
