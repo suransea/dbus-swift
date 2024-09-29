@@ -318,15 +318,17 @@ public struct DBusInterface: InterfaceProtocol {
   /// - Parameter name: The name to query.
   /// - Throws: `DBus.Error` if the request failed.
   ///
-  public func getConnectionCredentials(_ name: BusName) throws(DBus.Error) -> [String: AnyVariant] {
+  public func getConnectionCredentials(
+    _ name: BusName
+  ) throws(DBus.Error) -> [String: Variant<AnyArgument>] {
     try proxy.GetConnectionCredentials(name)
   }
 
   /// Async version of `getConnectionCredentials(_:)`.
   @available(macOS 10.15.0, *)
-  public func getConnectionCredentials(_ name: BusName) async throws(DBus.Error) -> [String:
-    AnyVariant]
-  {
+  public func getConnectionCredentials(
+    _ name: BusName
+  ) async throws(DBus.Error) -> [String: Variant<AnyArgument>] {
     try await proxy.GetConnectionCredentials(name)
   }
 }

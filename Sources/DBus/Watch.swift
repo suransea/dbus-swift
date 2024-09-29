@@ -45,7 +45,7 @@ public struct WatchFlags: OptionSet, Sendable {
   static let hangup = WatchFlags(rawValue: 1 << 3)
 }
 
-public protocol WatchDelegate {
+public protocol WatchDelegate: AnyObject {
   func add(watch: Watch) -> Bool
   func remove(watch: Watch)
   func onToggled(watch: Watch)

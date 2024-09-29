@@ -69,10 +69,17 @@ extension ArgumentType {
 /// It's necessary to implement this protocol for custom types,
 /// which using in D-Bus method arguments/returns.
 public protocol Argument {
-  /// The type of the argument.
+  /// The type of the argument, at compile time.
   static var type: ArgumentType { get }
-  /// The type signature of the argument.
+  /// The type signature of the argument, at compile time.
   static var signature: Signature { get }
+
+  /// The type of the argument, at runtime.
+  /// It's useful for dynamic types, eg. `AnyArgument`.
+  var type: ArgumentType { get }
+  /// The type signature of the argument, at runtime.
+  /// It's useful for dynamic types, eg. `AnyArgument`.
+  var signature: Signature { get }
 
   /// Read the argument from the message iterator.
   ///
@@ -86,9 +93,15 @@ public protocol Argument {
 }
 
 extension Argument {
-  /// For basic types, the signature is the type code.
+  /// For basic types, the signature is the type code character.
   public static var signature: Signature {
     .init(rawValue: String(UnicodeScalar(UInt32(type.rawValue))!))
+  }
+  /// For static types, the runtime type is equal to the compile-time type.
+  public var type: ArgumentType { Self.type }
+  /// For basic types, the signature is the type code character.
+  public var signature: Signature {
+    .init(rawValue: String(UnicodeScalar(UInt32(self.type.rawValue))!))
   }
 }
 
@@ -294,6 +307,49 @@ extension FileDescriptor: Argument {
   }
 }
 
+public struct AnyArgument {
+  public let value: any Argument
+}
+
+extension AnyArgument: Argument {
+  public static var type: ArgumentType {
+    fatalError("Cannot get type at compile time for `AnyArgument`")
+  }
+  public static var signature: Signature {
+    fatalError("Cannot get signature at compile time for `AnyArgument`")
+  }
+  public var type: ArgumentType { value.type }
+  public var signature: Signature { value.signature }
+
+  public init(from iter: inout MessageIter) {
+    value =
+      switch iter.argumentType {
+      case .byte: UInt8(from: &iter)
+      case .boolean: Bool(from: &iter)
+      case .int16: Int16(from: &iter)
+      case .uint16: UInt16(from: &iter)
+      case .int32: Int32(from: &iter)
+      case .uint32: UInt32(from: &iter)
+      case .int64: Int64(from: &iter)
+      case .uint64: UInt64(from: &iter)
+      case .double: Double(from: &iter)
+      case .string: String(from: &iter)
+      case .objectPath: ObjectPath(from: &iter)
+      case .signature: Signature(from: &iter)
+      case .unixFD: FileDescriptor(from: &iter)
+      case .array: [AnyArgument](from: &iter)
+      case .variant: Variant<AnyArgument>(from: &iter)
+      case .struct: AnyStruct(from: &iter)
+      case .dictEntry: DictEntry<AnyArgument, AnyArgument>(from: &iter)
+      case .invalid: fatalError("Invalid argument type")
+      }
+  }
+
+  public func append(to iter: inout MessageIter) throws(Error) {
+    try value.append(to: &iter)
+  }
+}
+
 extension Array: Argument where Element: Argument {
   public static var type: ArgumentType { .array }
 
@@ -309,9 +365,9 @@ extension Array: Argument where Element: Argument {
   }
 
   public func append(to iter: inout MessageIter) throws(DBus.Error) {
-    try iter.withContainer(
-      type: .array, signature: Element.signature
-    ) { subIter throws(DBus.Error) in
+    // If the array is not empty, use the first element's signature.
+    let signature = isEmpty ? Element.signature : self[0].signature
+    try iter.withContainer(type: .array, signature: signature) { subIter throws(DBus.Error) in
       for element in self {
         try element.append(to: &subIter)
       }
@@ -332,25 +388,11 @@ extension Variant: Argument {
   }
 
   public func append(to iter: inout MessageIter) throws(DBus.Error) {
-    try iter.withContainer(type: .variant, signature: T.signature) { subIter throws(DBus.Error) in
+    try iter.withContainer(
+      type: .variant, signature: value.signature
+    ) { subIter throws(DBus.Error) in
       try value.append(to: &subIter)
     }
-  }
-}
-
-public struct AnyVariant {
-  public let messageIter: MessageIter
-}
-
-extension AnyVariant: Argument {
-  public static var type: ArgumentType { .variant }
-
-  public init(from iter: inout MessageIter) {
-    messageIter = iter.iterateRecurse()
-  }
-
-  public func append(to iter: inout MessageIter) throws(DBus.Error) {
-    fatalError("Not implemented")
   }
 }
 
@@ -374,12 +416,53 @@ extension Struct: Argument {
 
   public init(from iter: inout MessageIter) {
     var subIter = iter.iterateRecurse()
-    values = (repeat (each T).init(from: &subIter))
+    var first = true
+    func nextValue<V: Argument>() -> V {
+      if first {
+        first = false
+      } else {
+        _ = subIter.next()
+      }
+      return V(from: &subIter)
+    }
+    values = (repeat nextValue() as each T)
   }
 
   public func append(to iter: inout MessageIter) throws(DBus.Error) {
     try iter.withContainer(type: .struct) { subIter throws(DBus.Error) in
       for value in repeat each values {
+        try value.append(to: &subIter)
+      }
+    }
+  }
+}
+
+public struct AnyStruct {
+  public let values: [AnyArgument]
+}
+
+extension AnyStruct: Argument {
+  public static var type: ArgumentType { .struct }
+  public static var signature: Signature {
+    fatalError("Cannot get signature at compile time for `AnyStruct`")
+  }
+  public var signature: Signature {
+    var signatures = DBUS_STRUCT_BEGIN_CHAR_AS_STRING
+    for value in values {
+      signatures += value.signature.rawValue
+    }
+    signatures += DBUS_STRUCT_END_CHAR_AS_STRING
+    return Signature(rawValue: signatures)
+  }
+
+  public init(from iter: inout MessageIter) {
+    var subIter = iter.iterateRecurse()
+    values = [AnyArgument](from: &subIter)
+  }
+
+  public func append(to iter: inout MessageIter) throws(DBus.Error) {
+    try iter.withContainer(type: .struct) { subIter throws(DBus.Error) in
+      for value in values {
         try value.append(to: &subIter)
       }
     }
@@ -402,9 +485,18 @@ extension DictEntry: Argument {
     return Signature(rawValue: signatures)
   }
 
+  public var signature: Signature {
+    let signatures =
+      DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+      + key.signature.rawValue + value.signature.rawValue
+      + DBUS_DICT_ENTRY_END_CHAR_AS_STRING
+    return Signature(rawValue: signatures)
+  }
+
   public init(from iter: inout MessageIter) {
     var subIter = iter.iterateRecurse()
     key = K(from: &subIter)
+    _ = subIter.next()
     value = V(from: &subIter)
   }
 
@@ -428,13 +520,7 @@ extension Dictionary: Argument where Key: Argument, Value: Argument {
   }
 
   public func append(to iter: inout MessageIter) throws(DBus.Error) {
-    try iter.withContainer(
-      type: .array, signature: DictEntry<Key, Value>.signature
-    ) { subIter throws(DBus.Error) in
-      for (key, value) in self {
-        try DictEntry(key: key, value: value).append(to: &subIter)
-      }
-    }
+    try map { (key, value) in DictEntry(key: key, value: value) }.append(to: &iter)
   }
 }
 
