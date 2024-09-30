@@ -25,6 +25,7 @@ extension ErrorName: CustomStringConvertible {
   }
 }
 
+/// Error names, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-error
 extension ErrorName {
   /// A generic error; "something went wrong" - see the error message for more.
   public static let failed = ErrorName(rawValue: DBUS_ERROR_FAILED)

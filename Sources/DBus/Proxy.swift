@@ -4,7 +4,17 @@ public struct ObjectProxy {
   let connection: Connection
   let destination: BusName
   let path: ObjectPath
-  let timeout: TimeoutInterval = .useDefault
+  let timeout: TimeoutInterval
+
+  public init(
+    connection: Connection, destination: BusName, path: ObjectPath,
+    timeout: TimeoutInterval = .useDefault
+  ) {
+    self.connection = connection
+    self.destination = destination
+    self.path = path
+    self.timeout = timeout
+  }
 
   public func call<each T: Argument, each R: Argument>(
     method: MemberName, of interface: InterfaceName, arguments: repeat each T

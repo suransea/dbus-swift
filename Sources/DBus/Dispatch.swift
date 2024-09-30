@@ -17,10 +17,9 @@ extension DispatchStatus {
 extension Connection {
   public func setupDispatch(with runLoop: RunLoop) throws(DBus.Error) {
     let dispatchRemains = {
-      runLoop.perform {
+      CFRunLoopPerformBlock(runLoop.getCFRunLoop(), CFRunLoopMode.defaultMode.rawValue) {
         while self.dispatch() == .dataRemains {}
       }
-      CFRunLoopWakeUp(runLoop.getCFRunLoop())
     }
     setDispatchStatusHandler { status in
       if status == .dataRemains {
@@ -28,7 +27,7 @@ extension Connection {
       }
     }
     setWakeUpHandler {
-      CFRunLoopWakeUp(CFRunLoopGetMain())
+      CFRunLoopWakeUp(runLoop.getCFRunLoop())
     }
     try setWatchDelegate(RunLoopWatcher(runLoop: runLoop, dispatcher: dispatchRemains))
     try setTimeoutDelegate(RunLoopTimer(runLoop: runLoop))

@@ -15,7 +15,8 @@ public class Message: @unchecked Sendable {
     methodCall: (destination: BusName, path: ObjectPath, interface: InterfaceName, name: MemberName)
   ) {
     raw = dbus_message_new_method_call(
-      methodCall.destination, methodCall.path.rawValue, methodCall.interface, methodCall.name)
+      methodCall.destination.rawValue, methodCall.path.rawValue,
+      methodCall.interface.rawValue, methodCall.name.rawValue)
   }
 
   public init(methodReturn: Message) {
@@ -27,7 +28,8 @@ public class Message: @unchecked Sendable {
   }
 
   public init(signal: (path: ObjectPath, interface: InterfaceName, name: MemberName)) {
-    raw = dbus_message_new_signal(signal.path.rawValue, signal.interface, signal.name)
+    raw = dbus_message_new_signal(
+      signal.path.rawValue, signal.interface.rawValue, signal.name.rawValue)
   }
 
   deinit {
@@ -54,28 +56,36 @@ public class Message: @unchecked Sendable {
   }
 
   public var sender: BusName? {
-    get { dbus_message_get_sender(raw).map(String.init(cString:)) }
-    set { dbus_message_set_sender(raw, newValue) }
+    get { dbus_message_get_sender(raw).map(String.init(cString:)).map(BusName.init(rawValue:)) }
+    set { dbus_message_set_sender(raw, newValue?.rawValue) }
   }
 
   public var destination: BusName? {
-    get { dbus_message_get_destination(raw).map(String.init(cString:)) }
-    set { dbus_message_set_destination(raw, newValue) }
+    get {
+      dbus_message_get_destination(raw).map(String.init(cString:)).map(BusName.init(rawValue:))
+    }
+    set {
+      dbus_message_set_destination(raw, newValue?.rawValue)
+    }
   }
 
   public var path: ObjectPath? {
-    get { dbus_message_get_path(raw).map(String.init(cString:)).map(ObjectPath.init) }
+    get { dbus_message_get_path(raw).map(String.init(cString:)).map(ObjectPath.init(rawValue:)) }
     set { dbus_message_set_path(raw, newValue?.rawValue) }
   }
 
   public var interface: InterfaceName? {
-    get { dbus_message_get_interface(raw).map(String.init(cString:)) }
-    set { dbus_message_set_interface(raw, newValue) }
+    get {
+      dbus_message_get_interface(raw).map(String.init(cString:)).map(InterfaceName.init(rawValue:))
+    }
+    set {
+      dbus_message_set_interface(raw, newValue?.rawValue)
+    }
   }
 
   public var member: MemberName? {
-    get { dbus_message_get_member(raw).map(String.init(cString:)) }
-    set { dbus_message_set_member(raw, newValue) }
+    get { dbus_message_get_member(raw).map(String.init(cString:)).map(MemberName.init(rawValue:)) }
+    set { dbus_message_set_member(raw, newValue?.rawValue) }
   }
 
   public var errorName: ErrorName? {
@@ -125,7 +135,9 @@ public struct MessageIter: BitwiseCopyable {
 
   public var signature: Signature? {
     mutating get {
-      dbus_message_iter_get_signature(&raw).map { String(cString: $0) }.map(Signature.init)
+      dbus_message_iter_get_signature(&raw)
+        .map { String(cString: $0) }
+        .map(Signature.init(rawValue:))
     }
   }
 

@@ -1,50 +1,26 @@
 import Foundation
 
-/// D-Bus interface name, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
-public typealias InterfaceName = String
+/// Interface names, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
+public struct InterfaceName: RawRepresentable, Hashable, Equatable, Sendable {
+  public let rawValue: String
 
-/// Interface protocol represents a D-Bus interface.
-///
-/// `InterfaceProtocol` declares the destination, object path and interface name of an interface,
-/// and provides a static function to create a proxy object.
-///
-/// It's suggested to create a new protocol extended this for each D-Bus interface.
-public protocol InterfaceProtocol {
-  /// The destination of the interface.
-  static var destination: BusName { get }
-  /// The object path of the interface.
-  static var objectPath: ObjectPath { get }
-  /// The name of the interface.
-  static var name: InterfaceName { get }
-}
-
-extension InterfaceProtocol {
-  /// Create a new proxy on the given connection.
-  ///
-  /// - Parameter connection: The connection to create the proxy on.
-  public static func proxy(on connection: Connection) -> InterfaceProxy {
-    InterfaceProxy(
-      objectProxy: ObjectProxy(
-        connection: connection, destination: Self.destination, path: Self.objectPath),
-      interface: Self.name)
+  public init(rawValue: String) {
+    self.rawValue = rawValue
   }
 }
 
-/// D-Bus message bus interface, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-bus
-public struct DBusInterface: InterfaceProtocol {
-  public static var destination: BusName { "org.freedesktop.DBus" }
-  public static var objectPath: ObjectPath { .init(rawValue: "/org/freedesktop/DBus") }
-  public static var name: InterfaceName { "org.freedesktop.DBus" }
-
-  private let proxy: InterfaceProxy
-
-  /// Create a new D-Bus interface on the given connection.
-  ///
-  /// - Parameter connection: The connection to create the interface on.
-  public init(on connection: Connection) {
-    proxy = Self.proxy(on: connection)
+extension InterfaceName: ExpressibleByStringLiteral {
+  public init(stringLiteral value: String) {
+    self.rawValue = value
   }
+}
 
+extension InterfaceName: CustomStringConvertible {
+  public var description: String { rawValue }
+}
+
+/// Bus interface, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-bus-messages
+public protocol BusInterface {
   /// Before an application is able to send messages to other applications it must send the
   /// org.freedesktop.DBus.Hello message to the message bus to obtain a unique name.
   /// If an application without a unique name tries to send a message to another application,
@@ -54,11 +30,10 @@ public struct DBusInterface: InterfaceProtocol {
   /// if a client wishes to disconnect from the bus, it simply closes the socket (or other communication channel).
   ///
   /// - Returns: Unique name assigned to the connection.
-  public func hello() throws(DBus.Error) -> String { try proxy.Hello() }
+  func hello() throws -> String
 
   /// Async version of `hello()`.
-  @available(macOS 10.15.0, *)
-  public func hello() async throws(DBus.Error) -> String { try await proxy.Hello() }
+  func hello() async throws -> String
 
   /// Ask the message bus to assign the given name to the method caller.
   ///
@@ -67,19 +42,10 @@ public struct DBusInterface: InterfaceProtocol {
   ///   - flags: Flags to modify the behavior of the request.
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: The reply of the request.
-  public func requestName(
-    _ name: BusName, _ flags: RequestNameFlags
-  ) throws(DBus.Error) -> RequestNameReply {
-    try proxy.RequestName(name, flags)
-  }
+  func requestName(_ name: BusName, _ flags: RequestNameFlags) throws -> RequestNameReply
 
   /// Async version of `requestName(_:flags:)`.
-  @available(macOS 10.15.0, *)
-  public func requestName(
-    _ name: BusName, _ flags: RequestNameFlags
-  ) async throws(DBus.Error) -> RequestNameReply {
-    try await proxy.RequestName(name, flags)
-  }
+  func requestName(_ name: BusName, _ flags: RequestNameFlags) async throws -> RequestNameReply
 
   /// Release a previously requested name.
   /// This will release the name from the caller's ownership, allowing other clients to request it.
@@ -87,103 +53,68 @@ public struct DBusInterface: InterfaceProtocol {
   /// - Parameter name: The name to release.
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: The reply of the request.
-  public func releaseName(_ name: BusName) throws(DBus.Error) -> ReleaseNameReply {
-    try proxy.ReleaseName(name)
-  }
+  func releaseName(_ name: BusName) throws -> ReleaseNameReply
 
-  /// async version of `releaseName(_:)`.
-  @available(macOS 10.15.0, *)
-  public func releaseName(_ name: BusName) async throws(DBus.Error) -> ReleaseNameReply {
-    try await proxy.ReleaseName(name)
-  }
+  /// Async version of `releaseName(_:)`.
+  func releaseName(_ name: BusName) async throws -> ReleaseNameReply
 
   /// List all currently-owned names on the bus.
   ///
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: The list of names.
-  public func listNames() throws(DBus.Error) -> [BusName] {
-    try proxy.ListNames()
-  }
+  func listNames() throws -> [BusName]
 
   /// Async version of `listNames()`.
-  @available(macOS 10.15.0, *)
-  public func listNames() async throws(DBus.Error) -> [BusName] {
-    try await proxy.ListNames()
-  }
+  func listNames() async throws -> [BusName]
 
   /// List all names that can be activated on the bus.
   ///
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: The list of names.
-  public func listActivatableNames() throws(DBus.Error) -> [BusName] {
-    try proxy.ListActivatableNames()
-  }
+  func listActivatableNames() throws -> [BusName]
 
   /// Async version of `listActivatableNames()`.
-  @available(macOS 10.15.0, *)
-  public func listActivatableNames() async throws(DBus.Error) -> [BusName] {
-    try await proxy.ListActivatableNames()
-  }
+  func listActivatableNames() async throws -> [BusName]
 
   /// Add a match rule to the connection.
   /// Match rules are used to select messages from the message bus, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-bus-routing-match-rules
   ///
   /// - Parameter rule: The match rule to add.
   /// - Throws: `DBus.Error` if the request failed.
-  public func addMatch(_ rule: String) throws(DBus.Error) {
-    try proxy.AddMatch(rule) as Void
-  }
+  func addMatch(_ rule: String) throws
 
   /// Async version of `addMatch(_:)`.
-  @available(macOS 10.15.0, *)
-  public func addMatch(_ rule: String) async throws(DBus.Error) {
-    try await proxy.AddMatch(rule) as Void
-  }
+  func addMatch(_ rule: String) async throws
 
   /// Remove a match rule from the connection.
   /// Match rules are used to select messages from the message bus, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-bus-routing-match-rules
   ///
   /// - Parameter rule: The match rule to remove.
   /// - Throws: `DBus.Error` if the request failed.
-  public func removeMatch(_ rule: String) throws(DBus.Error) {
-    try proxy.RemoveMatch(rule) as Void
-  }
+  func removeMatch(_ rule: String) throws
 
   /// Async version of `removeMatch(_:)`.
-  @available(macOS 10.15.0, *)
-  public func removeMatch(_ rule: String) async throws(DBus.Error) {
-    try await proxy.RemoveMatch(rule) as Void
-  }
+  func removeMatch(_ rule: String) async throws
 
   /// Check if a name has an owner.
   ///
   /// - Parameter name: The name to check.
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: `true` if the name has an owner, `false` otherwise.
-  public func nameHasOwner(_ name: BusName) throws(DBus.Error) -> Bool {
-    try proxy.NameHasOwner(name)
-  }
+  func nameHasOwner(_ name: BusName) throws -> Bool
 
   /// Async version of `nameHasOwner(_:)`.
-  @available(macOS 10.15.0, *)
-  public func nameHasOwner(_ name: BusName) async throws(DBus.Error) -> Bool {
-    try await proxy.NameHasOwner(name)
-  }
+  func nameHasOwner(_ name: BusName) async throws -> Bool
 
   /// Get the unique name of the owner of the given name.
   ///
   /// - Parameter name: The name to query.
   /// - Throws: org.freedesktop.DBus.Error.NameHasNoOwner if the requested name doesn't have an owner
   /// - Returns: The unique name of the owner.
-  public func getNameOwner(_ name: BusName) throws(DBus.Error) -> BusName {
-    try proxy.GetNameOwner(name)
-  }
+  func getNameOwner(_ name: BusName) throws -> BusName
 
   /// Async version of `getNameOwner(_:)`.
-  @available(macOS 10.15.0, *)
-  public func getNameOwner(_ name: BusName) async throws(DBus.Error) -> BusName {
-    try await proxy.GetNameOwner(name)
-  }
+  func getNameOwner(_ name: BusName) async throws -> BusName
 
   /// Tries to launch the executable associated with a name (service activation), as an explicit request.
   ///
@@ -192,34 +123,20 @@ public struct DBusInterface: InterfaceProtocol {
   ///   - flags: Flags to modify the behavior of the request, currently not used
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: The reply of the request.
-  public func startServiceByName(
-    _ name: BusName, _ flags: StartServiceFlags
-  ) throws(DBus.Error) -> StartServiceReply {
-    try proxy.StartServiceByName(name, flags)
-  }
+  func startServiceByName(_ name: BusName, _ flags: StartServiceFlags) throws -> StartServiceReply
 
   /// Async version of `startServiceByName(_:flags:)`.
-  @available(macOS 10.15.0, *)
-  public func startServiceByName(
-    _ name: BusName, _ flags: StartServiceFlags
-  ) async throws(DBus.Error) -> StartServiceReply {
-    try await proxy.StartServiceByName(name, flags)
-  }
+  func startServiceByName(_ name: BusName, _ flags: StartServiceFlags) async throws
+    -> StartServiceReply
 
   /// Update the activation environment of the connection.
   ///
   /// - Parameter environment: The new activation environment.
   /// - Throws: `DBus.Error` if the request failed.
-  public func updateActivationEnvironment(_ environment: [String: String]) throws(DBus.Error) {
-    try proxy.UpdateActivationEnvironment(environment) as Void
-  }
+  func updateActivationEnvironment(_ environment: [String: String]) throws
 
   /// Async version of `updateActivationEnvironment(_:)`.
-  @available(macOS 10.15.0, *)
-  public func updateActivationEnvironment(_ environment: [String: String]) async throws(DBus.Error)
-  {
-    try await proxy.UpdateActivationEnvironment(environment) as Void
-  }
+  func updateActivationEnvironment(_ environment: [String: String]) async throws
 
   /// List the queued owners of the given name.
   /// The queued owners are the names that have requested the name but not yet been granted it.
@@ -227,110 +144,152 @@ public struct DBusInterface: InterfaceProtocol {
   /// - Parameter name: The name to query.
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: The list of queued owners.
-  public func listQueuedOwners(_ name: BusName) throws(DBus.Error) -> [BusName] {
-    try proxy.ListQueuedOwners(name)
-  }
+  func listQueuedOwners(_ name: BusName) throws -> [BusName]
 
   /// Async version of `listQueuedOwners(_:)`.
-  @available(macOS 10.15.0, *)
-  public func listQueuedOwners(_ name: BusName) async throws(DBus.Error) -> [BusName] {
-    try await proxy.ListQueuedOwners(name)
-  }
+  func listQueuedOwners(_ name: BusName) async throws -> [BusName]
 
   /// Get the connection Unix user ID of the given name.
   ///
   /// - Parameter name: The name to query.
   /// - Throws: `DBus.Error` if unable to determine it (for instance, because the process is not on the same machine as the bus daemon).
   /// - Returns: The connection Unix user ID.
-  public func getConnectionUnixUser(_ name: BusName) throws(DBus.Error) -> UInt32 {
-    try proxy.GetConnectionUnixUser(name)
-  }
+  func getConnectionUnixUser(_ name: BusName) throws -> UInt32
 
   /// Async version of `getConnectionUnixUser(_:)`.
-  @available(macOS 10.15.0, *)
-  public func getConnectionUnixUser(_ name: BusName) async throws(DBus.Error) -> UInt32 {
-    try await proxy.GetConnectionUnixUser(name)
-  }
+  func getConnectionUnixUser(_ name: BusName) async throws -> UInt32
 
   /// Get the connection Unix process ID of the given name.
   ///
   /// - Parameter name: The name to query.
   /// - Throws: `DBus.Error` if unable to determine it (for instance, because the process is not on the same machine as the bus daemon).
   /// - Returns: The connection Unix process ID.
-  public func getConnectionUnixProcessId(_ name: BusName) throws(DBus.Error) -> UInt32 {
-    try proxy.GetConnectionUnixProcessId(name)
-  }
+  func getConnectionUnixProcessId(_ name: BusName) throws -> UInt32
 
   /// Async version of `getConnectionUnixProcessId(_:)`.
-  @available(macOS 10.15.0, *)
-  public func getConnectionUnixProcessId(_ name: BusName) async throws(DBus.Error) -> UInt32 {
-    try await proxy.GetConnectionUnixProcessId(name)
-  }
+  func getConnectionUnixProcessId(_ name: BusName) async throws -> UInt32
 
   /// Get auditing data used by Solaris ADT of the given name, in an unspecified binary format.
   ///
   /// - Parameter name: The name to query.
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: The audit session data.
-  public func getAdtAuditSessionData(_ name: BusName) throws(DBus.Error) -> [UInt8] {
-    try proxy.GetAdtAuditSessionData(name)
-  }
+  func getAdtAuditSessionData(_ name: BusName) throws -> [UInt8]
 
   /// Async version of `getAdtAuditSessionData(_:)`.
-  @available(macOS 10.15.0, *)
-  public func getAdtAuditSessionData(_ name: BusName) async throws(DBus.Error) -> [UInt8] {
-    try await proxy.GetAdtAuditSessionData(name)
-  }
+  func getAdtAuditSessionData(_ name: BusName) async throws -> [UInt8]
 
   /// Get the SELinux security context of the given name, in an unspecified binary format.
   ///
   /// - Parameter name: The name to query.
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: The SELinux security context.
-  public func getConnectionSELinuxSecurityContext(_ name: BusName) throws(DBus.Error) -> [UInt8] {
-    try proxy.GetConnectionSELinuxSecurityContext(name)
-  }
+  func getConnectionSELinuxSecurityContext(_ name: BusName) throws -> [UInt8]
 
   /// Async version of `getConnectionSELinuxSecurityContext(_:)`.
-  @available(macOS 10.15.0, *)
-  public func getConnectionSELinuxSecurityContext(_ name: BusName) async throws(DBus.Error)
-    -> [UInt8]
-  {
-    try await proxy.GetConnectionSELinuxSecurityContext(name)
-  }
+  func getConnectionSELinuxSecurityContext(_ name: BusName) async throws -> [UInt8]
 
   /// Gets the unique ID of the bus.
   ///
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: The unique ID of the bus.
-  public func getId() throws(DBus.Error) -> String {
-    try proxy.GetId()
-  }
+  func getId() throws -> String
 
   /// Async version of `getId()`.
-  @available(macOS 10.15.0, *)
-  public func getId() async throws(DBus.Error) -> String {
-    try await proxy.GetId()
-  }
+  func getId() async throws -> String
 
   /// Get as many credentials as possible for the process connected to the server.
   ///
   /// - Parameter name: The name to query.
   /// - Throws: `DBus.Error` if the request failed.
-  ///
-  public func getConnectionCredentials(
-    _ name: BusName
-  ) throws(DBus.Error) -> [String: Variant<AnyArgument>] {
-    try proxy.GetConnectionCredentials(name)
-  }
+  func getConnectionCredentials(_ name: BusName) throws -> [String: Variant<AnyArgument>]
 
   /// Async version of `getConnectionCredentials(_:)`.
-  @available(macOS 10.15.0, *)
-  public func getConnectionCredentials(
-    _ name: BusName
-  ) async throws(DBus.Error) -> [String: Variant<AnyArgument>] {
-    try await proxy.GetConnectionCredentials(name)
-  }
+  func getConnectionCredentials(_ name: BusName) async throws -> [String: Variant<AnyArgument>]
+}
+
+extension InterfaceName {
+  /// Interface name of `BusInterface`.
+  public static let bus: InterfaceName = "org.freedesktop.DBus"
+}
+
+/// Peer interface, see https://dbus.freedesktop.org/doc/dbus-specification.html#standard-interfaces-peer
+public protocol PeerInterface {
+  /// Ping the connection.
+  ///
+  /// - Throws: `DBus.Error` if the request failed.
+  func ping() throws(DBus.Error)
+
+  /// Async version of `ping()`.
+  func ping() async throws(DBus.Error)
+
+  /// Get the machine ID.
+  ///
+  /// - Throws: `DBus.Error` if the request failed.
+  /// - Returns: The machine ID.
+  func getMachineId() throws(DBus.Error) -> String
+
+  /// Async version of `getMachineId()`.
+  func getMachineId() async throws(DBus.Error) -> String
+}
+
+extension InterfaceName {
+  /// Interface name of `PeerInterface`.
+  public static let peer: InterfaceName = "org.freedesktop.DBus.Peer"
+}
+
+/// Objects instances may implement Introspect which returns an XML description of the object,
+/// including its interfaces (with signals and methods),
+/// objects below it in the object path tree, and its properties.
+/// See https://dbus.freedesktop.org/doc/dbus-specification.html#standard-interfaces-introspectable
+public protocol IntrospectableInterface {
+  /// Introspect the object.
+  ///
+  /// - Throws: `DBus.Error` if the request failed.
+  /// - Returns: The introspection data.
+  func introspect() throws(DBus.Error) -> String
+  /// Async version of `introspect()`.
+  func introspect() async throws(DBus.Error) -> String
+}
+
+extension InterfaceName {
+  /// Interface name of `IntrospectableInterface`.
+  public static let introspectable: InterfaceName = "org.freedesktop.DBus.Introspectable"
+}
+
+///Properties interface, see https://dbus.freedesktop.org/doc/dbus-specification.html#standard-interfaces-properties
+public protocol PropertiesInterface {
+  /// Get all properties of the object.
+  ///
+  /// - Throws: `DBus.Error` if the request failed.
+  /// - Returns: The properties.
+  func getAll() throws(DBus.Error) -> [String: Variant<AnyArgument>]
+  /// Async version of `getAll()`.
+  func getAll() async throws(DBus.Error) -> [String: Variant<AnyArgument>]
+
+  /// Get a property of the object.
+  ///
+  /// - Parameter name: The name of the property.
+  /// - Throws: `DBus.Error` if the request failed.
+  /// - Returns: The property.
+  func get<R: Argument>(_ name: String) throws(DBus.Error) -> R
+  /// Async version of `get(_:)`.
+  func get<R: Argument>(_ name: String) async throws(DBus.Error) -> R
+
+  /// Set a property of the object.
+  ///
+  /// - Parameters:
+  ///   - name: The name of the property.
+  ///   - value: The value of the property.
+  /// - Throws: `DBus.Error` if the request failed.
+  func set(_ name: String, _ value: some Argument) throws(DBus.Error)
+  /// Async version of `set(_:_:)`.
+  func set(_ name: String, _ value: some Argument) async throws(DBus.Error)
+}
+
+extension InterfaceName {
+  /// Interface name of `PropertiesInterface`.
+  public static let properties: InterfaceName = "org.freedesktop.DBus.Properties"
 }
 
 /// Flags for RequestName, see https://dbus.freedesktop.org/doc/dbus-specification.html#bus-messages-request-name

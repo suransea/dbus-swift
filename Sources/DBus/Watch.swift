@@ -45,6 +45,30 @@ public struct WatchFlags: OptionSet, Sendable {
   static let hangup = WatchFlags(rawValue: 1 << 3)
 }
 
+extension WatchFlags {
+  init(cfFlags: CFOptionFlags) {
+    self.init()
+    if cfFlags & kCFFileDescriptorReadCallBack != 0 {
+      insert(.readable)
+    }
+    if cfFlags & kCFFileDescriptorWriteCallBack != 0 {
+      insert(.writable)
+    }
+  }
+}
+
+extension CFOptionFlags {
+  init(watchFlags: WatchFlags) {
+    self = 0
+    if watchFlags.contains(.readable) {
+      self |= kCFFileDescriptorReadCallBack
+    }
+    if watchFlags.contains(.writable) {
+      self |= kCFFileDescriptorWriteCallBack
+    }
+  }
+}
+
 public protocol WatchDelegate: AnyObject {
   func add(watch: Watch) -> Bool
   func remove(watch: Watch)
@@ -70,7 +94,7 @@ public class RunLoopWatcher: WatchDelegate {
       } catch {
         perror("[dbus] RunLoopWatcher: \(error)")
       }
-      self.dispatcher()  // call the dispatcher even if the watch failed
+      self.dispatcher()  // call the dispatcher even if the watch handle failed
     }
     let userInfo = Unmanaged.passRetained(handleWatch as AnyObject).toOpaque()
     var context = CFFileDescriptorContext(
@@ -84,25 +108,12 @@ public class RunLoopWatcher: WatchDelegate {
       copyDescription: nil)
     let callback: CFFileDescriptorCallBack = { fd, flags, info in
       let handleWatch = Unmanaged<AnyObject>.fromOpaque(info!).takeUnretainedValue()
-      var watchFlags = WatchFlags()
-      if flags & kCFFileDescriptorReadCallBack != 0 {
-        watchFlags.insert(.readable)
-      }
-      if flags & kCFFileDescriptorWriteCallBack != 0 {
-        watchFlags.insert(.writable)
-      }
-      (handleWatch as! (WatchFlags) -> Void)(watchFlags)
+      (handleWatch as! (WatchFlags) -> Void)(WatchFlags(cfFlags: flags))
+      CFFileDescriptorEnableCallBacks(fd, flags)  // callback is one-shot, re-enable
     }
     let fd = CFFileDescriptorCreate(
       kCFAllocatorDefault, watch.fileDescriptor, false, callback, &context)
-    var cfFlags = CFOptionFlags()
-    if watch.flags.contains(.readable) {
-      cfFlags |= kCFFileDescriptorReadCallBack
-    }
-    if watch.flags.contains(.writable) {
-      cfFlags |= kCFFileDescriptorWriteCallBack
-    }
-    CFFileDescriptorEnableCallBacks(fd, cfFlags)
+    CFFileDescriptorEnableCallBacks(fd, CFOptionFlags(watchFlags: watch.flags))
     let source = CFFileDescriptorCreateRunLoopSource(kCFAllocatorDefault, fd, 0)
     CFRunLoopAddSource(runLoop, source, .defaultMode)
     watches[watch] = {

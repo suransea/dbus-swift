@@ -75,10 +75,10 @@ public protocol Argument {
   static var signature: Signature { get }
 
   /// The type of the argument, at runtime.
-  /// It's useful for dynamic types, eg. `AnyArgument`.
+  /// It's useful for dynamic types, e.g. `AnyArgument`.
   var type: ArgumentType { get }
   /// The type signature of the argument, at runtime.
-  /// It's useful for dynamic types, eg. `AnyArgument`.
+  /// It's useful for dynamic types, e.g. `AnyArgument`.
   var signature: Signature { get }
 
   /// Read the argument from the message iterator.
@@ -237,30 +237,6 @@ extension String: Argument {
   }
 }
 
-/// D-Bus object path, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-marshaling-object-path
-public struct ObjectPath: Sendable, Equatable, Hashable, RawRepresentable {
-  public let rawValue: String
-
-  public init(rawValue: String) {
-    self.rawValue = rawValue
-  }
-}
-
-extension ObjectPath: Argument {
-  public static var type: ArgumentType { .objectPath }
-
-  public init(from iter: inout MessageIter) {
-    self.rawValue = String(cString: iter.getBasic().str)
-  }
-
-  public func append(to iter: inout MessageIter) throws(DBus.Error) {
-    try rawValue.withCStringTypedThrows { cString throws(DBus.Error) in
-      var basicValue = DBusBasicValue(str: UnsafeMutablePointer(mutating: cString))
-      try iter.append(basic: &basicValue, type: .objectPath)
-    }
-  }
-}
-
 /// D-Bus type signature, see https://dbus.freedesktop.org/doc/dbus-specification.html#type-system
 public struct Signature: Sendable, Equatable, Hashable, RawRepresentable {
   public let rawValue: String
@@ -268,6 +244,16 @@ public struct Signature: Sendable, Equatable, Hashable, RawRepresentable {
   public init(rawValue: String) {
     self.rawValue = rawValue
   }
+}
+
+extension Signature: ExpressibleByStringLiteral {
+  public init(stringLiteral value: String) {
+    self.rawValue = value
+  }
+}
+
+extension Signature: CustomStringConvertible {
+  public var description: String { rawValue }
 }
 
 extension Signature: Argument {
