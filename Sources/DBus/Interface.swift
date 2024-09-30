@@ -19,6 +19,18 @@ extension InterfaceName: CustomStringConvertible {
   public var description: String { rawValue }
 }
 
+extension InterfaceName: Argument {
+  public static var type: ArgumentType { .string }
+
+  public init(from iter: inout MessageIter) {
+    self.rawValue = String(from: &iter)
+  }
+
+  public func append(to iter: inout MessageIter) throws(Error) {
+    try rawValue.append(to: &iter)
+  }
+}
+
 /// Bus interface, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-bus-messages
 public protocol BusInterface {
   /// Before an application is able to send messages to other applications it must send the
@@ -263,18 +275,22 @@ public protocol PropertiesInterface {
   ///
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: The properties.
-  func getAll() throws(DBus.Error) -> [String: Variant<AnyArgument>]
+  func getAll(_ interface: InterfaceName) throws(DBus.Error) -> [String: Variant<AnyArgument>]
   /// Async version of `getAll()`.
-  func getAll() async throws(DBus.Error) -> [String: Variant<AnyArgument>]
+  func getAll(_ interface: InterfaceName) async throws(DBus.Error) -> [String: Variant<AnyArgument>]
 
   /// Get a property of the object.
   ///
   /// - Parameter name: The name of the property.
   /// - Throws: `DBus.Error` if the request failed.
   /// - Returns: The property.
-  func get<R: Argument>(_ name: String) throws(DBus.Error) -> R
+  func get<R: Argument>(
+    _ interface: InterfaceName, _ name: String
+  ) throws(DBus.Error) -> Variant<R>
   /// Async version of `get(_:)`.
-  func get<R: Argument>(_ name: String) async throws(DBus.Error) -> R
+  func get<R: Argument>(
+    _ interface: InterfaceName, _ name: String
+  ) async throws(DBus.Error) -> Variant<R>
 
   /// Set a property of the object.
   ///
@@ -282,9 +298,13 @@ public protocol PropertiesInterface {
   ///   - name: The name of the property.
   ///   - value: The value of the property.
   /// - Throws: `DBus.Error` if the request failed.
-  func set(_ name: String, _ value: some Argument) throws(DBus.Error)
+  func set(
+    _ interface: InterfaceName, _ name: String, _ value: Variant<some Argument>
+  ) throws(DBus.Error)
   /// Async version of `set(_:_:)`.
-  func set(_ name: String, _ value: some Argument) async throws(DBus.Error)
+  func set(
+    _ interface: InterfaceName, _ name: String, _ value: Variant<some Argument>
+  ) async throws(DBus.Error)
 }
 
 extension InterfaceName {

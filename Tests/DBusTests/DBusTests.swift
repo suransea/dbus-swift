@@ -14,4 +14,6 @@ import Testing
   print("Names: \(names)")
   let introspect = try await bus.introspect()
   print("Introspect: \(introspect)")
+  let features = try await bus.features()
+  print("Features: \(features)")
 }

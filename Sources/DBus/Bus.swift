@@ -53,6 +53,7 @@ public struct Bus: BusInterface, PeerInterface, IntrospectableInterface {
   private let bus: InterfaceProxy
   private let peer: InterfaceProxy
   private let introspectable: InterfaceProxy
+  private let properties: PropertiesProxy
 
   /// Create a new bus object on the given connection.
   ///
@@ -62,9 +63,19 @@ public struct Bus: BusInterface, PeerInterface, IntrospectableInterface {
   public init(on connection: Connection, timeout: TimeoutInterval = .useDefault) {
     let objectProxy = ObjectProxy(
       connection: connection, destination: .bus, path: .bus, timeout: timeout)
-    bus = InterfaceProxy(objectProxy: objectProxy, interface: .bus)
-    peer = InterfaceProxy(objectProxy: objectProxy, interface: .peer)
-    introspectable = InterfaceProxy(objectProxy: objectProxy, interface: .introspectable)
+    bus = objectProxy.interface(named: .bus)
+    peer = objectProxy.interface(named: .peer)
+    introspectable = objectProxy.interface(named: .introspectable)
+    properties = bus.properties
+  }
+
+  public func features() throws(DBus.Error) -> [String] {
+    try properties.Features.get()
+  }
+
+  @available(macOS 10.15.0, *)
+  public func features() async throws(DBus.Error) -> [String] {
+    try await properties.Features.get()
   }
 
   public func hello() throws(DBus.Error) -> String { try bus.Hello() }
