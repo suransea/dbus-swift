@@ -1,4 +1,5 @@
-/// Member names, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-member
+/// Represents member names.
+/// See https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-member
 public struct MemberName: RawRepresentable, Hashable, Equatable, Sendable {
   public let rawValue: String
 

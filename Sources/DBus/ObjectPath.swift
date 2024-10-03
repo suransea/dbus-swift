@@ -1,6 +1,7 @@
 import CDBus
 
-/// Object path, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-marshaling-object-path
+/// Represents an object path in D-Bus.
+/// See https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-marshaling-object-path
 public struct ObjectPath: Sendable, Equatable, Hashable, RawRepresentable {
   public let rawValue: String
 
@@ -22,19 +23,15 @@ extension ObjectPath: CustomStringConvertible {
 extension ObjectPath: Argument {
   public static var type: ArgumentType { .objectPath }
 
-  public init(from iter: inout MessageIter) {
-    self.rawValue = String(cString: iter.getBasic().str)
+  public init(from iter: inout MessageIterator) throws(DBus.Error) {
+    try iter.checkArgumentType(.objectPath)
+    self.rawValue = String(cString: try iter.nextBasic().str)
   }
 
-  public func append(to iter: inout MessageIter) throws(DBus.Error) {
+  public func append(to iter: inout MessageIterator) throws(DBus.Error) {
     try rawValue.withCStringTypedThrows { cString throws(DBus.Error) in
       var basicValue = DBusBasicValue(str: UnsafeMutablePointer(mutating: cString))
       try iter.append(basic: &basicValue, type: .objectPath)
     }
   }
-}
-
-extension ObjectPath {
-  /// The D-Bus root object path.
-  public static let bus: ObjectPath = "/org/freedesktop/DBus"
 }

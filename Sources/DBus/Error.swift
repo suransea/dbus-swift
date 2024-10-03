@@ -1,8 +1,20 @@
 import CDBus
 
+/// Represents an error in the D-Bus system.
 public struct Error: Swift.Error, Equatable, Hashable {
+  /// The name of the error.
   public let name: ErrorName
+  /// The message associated with the error.
   public let message: String
+
+  /// Initializes a new `Error` with the given name and message.
+  /// - Parameters:
+  ///   - name: The name of the error.
+  ///   - message: The message associated with the error.
+  public init(name: ErrorName, message: String) {
+    self.name = name
+    self.message = message
+  }
 }
 
 extension Error: CustomStringConvertible {
@@ -11,11 +23,19 @@ extension Error: CustomStringConvertible {
   }
 }
 
+/// Represents the name of a D-Bus error.
+/// See https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-error
 public struct ErrorName: Sendable, Equatable, Hashable, RawRepresentable {
   public let rawValue: String
 
   public init(rawValue: String) {
     self.rawValue = rawValue
+  }
+}
+
+extension ErrorName: ExpressibleByStringLiteral {
+  public init(stringLiteral value: String) {
+    self.rawValue = value
   }
 }
 
@@ -25,7 +45,6 @@ extension ErrorName: CustomStringConvertible {
   }
 }
 
-/// Error names, see https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-error
 extension ErrorName {
   /// A generic error; "something went wrong" - see the error message for more.
   public static let failed = ErrorName(rawValue: DBUS_ERROR_FAILED)
@@ -52,9 +71,9 @@ extension ErrorName {
   /// Unable to connect to server (probably caused by ECONNREFUSED on a socket).
   public static let noServer = ErrorName(rawValue: DBUS_ERROR_NO_SERVER)
   /// Certain timeout errors, possibly ETIMEDOUT on a socket.
-  /// Note that `DBUS_ERROR_NO_REPLY` is used for message reply timeouts.
-  /// @warning this is confusingly-named given that `DBUS_ERROR_TIMED_OUT` also exists. We can't fix
-  /// it for compatibility reasons so just be careful.
+  /// Note that `noReply` is used for message reply timeouts.
+  /// Warning: This is confusingly-named given that `timedOut` also exists.
+  /// We can't fix it for compatibility reasons so just be careful.
   public static let timeout = ErrorName(rawValue: DBUS_ERROR_TIMEOUT)
   /// No network access (probably ENETUNREACH on a socket).
   public static let noNetwork = ErrorName(rawValue: DBUS_ERROR_NO_NETWORK)
@@ -79,8 +98,8 @@ extension ErrorName {
   /// Property you tried to set is read-only.
   public static let propertyReadOnly = ErrorName(rawValue: DBUS_ERROR_PROPERTY_READ_ONLY)
   /// Certain timeout errors, e.g. while starting a service.
-  /// @warning this is confusingly-named given that #DBUS_ERROR_TIMEOUT also exists. We can't fix
-  /// it for compatibility reasons so just be careful.
+  /// Warning: This is confusingly-named given that `timeout` also exists.
+  /// We can't fix it for compatibility reasons so just be careful.
   public static let timedOut = ErrorName(rawValue: DBUS_ERROR_TIMED_OUT)
   /// Tried to remove or modify a match rule that didn't exist.
   public static let matchRuleNotFound = ErrorName(rawValue: DBUS_ERROR_MATCH_RULE_NOT_FOUND)
@@ -96,15 +115,14 @@ extension ErrorName {
   public static let spawnChildSignaled = ErrorName(rawValue: DBUS_ERROR_SPAWN_CHILD_SIGNALED)
   /// While starting a new process, something went wrong.
   public static let spawnFailed = ErrorName(rawValue: DBUS_ERROR_SPAWN_FAILED)
-  /// We failed to setup the environment correctly.
+  /// We failed to set up the environment correctly.
   public static let spawnSetupFailed = ErrorName(rawValue: DBUS_ERROR_SPAWN_SETUP_FAILED)
-  /// We failed to setup the config parser correctly.
+  /// We failed to set up the config parser correctly.
   public static let spawnConfigInvalid = ErrorName(rawValue: DBUS_ERROR_SPAWN_CONFIG_INVALID)
   /// Bus name was not valid.
   public static let spawnServiceInvalid = ErrorName(rawValue: DBUS_ERROR_SPAWN_SERVICE_INVALID)
   /// Service file not found in system-services directory.
-  public static let spawnServiceNotFound = ErrorName(
-    rawValue: DBUS_ERROR_SPAWN_SERVICE_NOT_FOUND)
+  public static let spawnServiceNotFound = ErrorName(rawValue: DBUS_ERROR_SPAWN_SERVICE_NOT_FOUND)
   /// Permissions are incorrect on the setuid helper.
   public static let spawnPermissionsInvalid = ErrorName(
     rawValue: DBUS_ERROR_SPAWN_PERMISSIONS_INVALID)
@@ -113,8 +131,7 @@ extension ErrorName {
   /// There was not enough memory to complete the operation.
   public static let spawnNoMemory = ErrorName(rawValue: DBUS_ERROR_SPAWN_NO_MEMORY)
   /// Tried to get a UNIX process ID and it wasn't available.
-  public static let unixProcessIdUnknown = ErrorName(
-    rawValue: DBUS_ERROR_UNIX_PROCESS_ID_UNKNOWN)
+  public static let unixProcessIdUnknown = ErrorName(rawValue: DBUS_ERROR_UNIX_PROCESS_ID_UNKNOWN)
   /// A type signature is not valid.
   public static let invalidSignature = ErrorName(rawValue: DBUS_ERROR_INVALID_SIGNATURE)
   /// A file contains invalid syntax or is otherwise broken.
@@ -123,53 +140,66 @@ extension ErrorName {
   public static let selinuxSecurityContextUnknown = ErrorName(
     rawValue: DBUS_ERROR_SELINUX_SECURITY_CONTEXT_UNKNOWN)
   /// Asked for ADT audit data and it wasn't available.
-  public static let adtAuditDataUnknown = ErrorName(
-    rawValue: DBUS_ERROR_ADT_AUDIT_DATA_UNKNOWN)
+  public static let adtAuditDataUnknown = ErrorName(rawValue: DBUS_ERROR_ADT_AUDIT_DATA_UNKNOWN)
   /// There's already an object with the requested object path.
   public static let objectPathInUse = ErrorName(rawValue: DBUS_ERROR_OBJECT_PATH_IN_USE)
   /// The message meta data does not match the payload. e.g. expected
   /// number of file descriptors were not sent over the socket this message was received on.
   public static let inconsistentMessage = ErrorName(rawValue: DBUS_ERROR_INCONSISTENT_MESSAGE)
   /// The message is not allowed without performing interactive authorization,
-  /// but could have succeeded if an interactive authorization step was
-  /// allowed.
+  /// but could have succeeded if an interactive authorization step was allowed.
   public static let interactiveAuthorizationRequired = ErrorName(
     rawValue: DBUS_ERROR_INTERACTIVE_AUTHORIZATION_REQUIRED)
-  /// The connection is not from a container, or the specified container instance
-  /// does not exist.
+  /// The connection is not from a container, or the specified container instance does not exist.
   public static let notContainer = ErrorName(rawValue: DBUS_ERROR_NOT_CONTAINER)
 }
 
+/// A wrapper of `DBusError`.
+///
+/// Note: This cannot be a non-copyable struct since deinit is immutable currently.
 class RawError {
   var raw: DBusError
 
+  /// Initializes a new `RawError`.
   init() {
     raw = DBusError()
     dbus_error_init(&raw)
   }
 
+  /// Deinitializes the `RawError`.
   deinit {
     dbus_error_free(&raw)
   }
 
+  /// The name of the error.
   var name: String {
     String(cString: raw.name)
   }
 
+  /// The message associated with the error.
   var message: String {
     String(cString: raw.message)
   }
 
+  /// Indicates whether the error is set.
   var isSet: Bool {
     dbus_error_is_set(&raw) != 0
   }
 
+  /// Checks if the error has the specified name.
+  ///
+  /// - Parameter name: The name to check.
+  /// - Returns: `true` if the error has the specified name, `false` otherwise.
   func hasName(_ name: String) -> Bool {
     dbus_error_has_name(&raw, name) != 0
   }
 }
 
 extension Error {
+  /// Initializes an `Error` from a `RawError`.
+  /// Returns `nil` if the error is not set.
+  ///
+  /// - Parameter error: The `RawError` instance.
   init?(_ error: RawError) {
     guard error.isSet else { return nil }
     name = ErrorName(rawValue: error.name)
