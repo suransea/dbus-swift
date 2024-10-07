@@ -70,6 +70,7 @@ extension InterfaceName {
 public struct Bus {
   private let methods: MethodsProxy
   private let properties: PropertiesProxy
+  private let signals: SignalsProxy
 
   /// Initializes a new message bus proxy on the given connection.
   ///
@@ -81,6 +82,7 @@ public struct Bus {
       connection: connection, destination: .bus, path: .bus, timeout: timeout)
     methods = object.methods(interface: .bus)
     properties = object.properties(interface: .bus)
+    signals = object.signals(interface: .bus)
   }
 
   /// Lists abstract "features" provided by the message bus.
@@ -383,6 +385,59 @@ public struct Bus {
     _ name: BusName
   ) async throws(DBus.Error) -> [String: Variant<AnyArgument>] {
     try await methods.GetConnectionCredentials(name)
+  }
+
+  /// This signal indicates that the owner of a name has changed.
+  /// It's also the signal to use to detect the appearance of new names on the bus.
+  ///
+  /// - Parameter handler: A block to handle the signal.
+  ///   - name: Name with a new owner.
+  ///   - oldOwner: Old owner or empty string if none.
+  ///   - newOwner: New owner or empty string if none.
+  /// - Throws: `DBus.Error` if the request failed.
+  /// - Returns: A function to disconnect the signal handler.
+  public func nameOwnerChanged(
+    _ handler: @escaping (_ name: BusName, _ oldOwner: BusName, _ newOwner: BusName) -> Void
+  ) throws(DBus.Error) -> () throws(DBus.Error) -> Void {
+    try signals.NameOwnerChanged.connect(handler)
+  }
+
+  /// This signal is sent to a specific application when it loses ownership of a name.
+  ///
+  /// - Parameter handler: A block to handle the signal.
+  ///   - name: Name that has been lost.
+  /// - Throws: `DBus.Error` if the request failed.
+  /// - Returns: A function to disconnect the signal handler.
+  public func nameLost(
+    _ handler: @escaping (_ name: BusName) -> Void
+  ) throws(DBus.Error) -> () throws(DBus.Error) -> Void {
+    try signals.NameLost.connect(handler)
+  }
+
+  /// This signal is sent to a specific application when it gains ownership of a name.
+  ///
+  /// - Parameter handler: A block to handle the signal.
+  ///   - name: Name that has been acquired.
+  /// - Throws: `DBus.Error` if the request failed.
+  /// - Returns: A function to disconnect the signal handler.
+  public func nameAcquired(
+    _ handler: @escaping (_ name: BusName) -> Void
+  ) throws(DBus.Error) -> () throws(DBus.Error) -> Void {
+    try signals.NameAcquired.connect(handler)
+  }
+
+  /// This signal is sent when the list of activatable services,
+  /// as returned by `listActivatableNames()`, might have changed.
+  /// Clients that have cached information about the activatable
+  /// services should call `listActivatableNames()` again to update their cache.
+  ///
+  /// - Parameter handler: A block to handle the signal.
+  /// - Throws: `DBus.Error` if the request failed.
+  /// - Returns: A function to disconnect the signal handler.
+  public func activatableServicesChanged(
+    _ handler: @escaping () -> Void
+  ) throws(DBus.Error) -> () throws(DBus.Error) -> Void {
+    try signals.ActivatableServicesChanged.connect(handler)
   }
 }
 

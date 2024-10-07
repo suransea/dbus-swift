@@ -3,6 +3,8 @@
 ![Github Release](https://flat.badgen.net/github/release/suransea/dbus-swift)
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/suransea/dbus-swift/swift.yml?style=flat-square)](https://github.com/suransea/dbus-swift/actions)
 ![GitHub License](https://img.shields.io/github/license/suransea/dbus-swift?style=flat-square)
+[![Swift Version Compatibility](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fsuransea%2Fdbus-swift%2Fbadge%3Ftype%3Dswift-versions&style=flat-square)](https://swiftpackageindex.com/suransea/dbus-swift)
+[![Platform Compatibility](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fsuransea%2Fdbus-swift%2Fbadge%3Ftype%3Dplatforms&style=flat-square)](https://swiftpackageindex.com/suransea/dbus-swift)
 
 [D-Bus](https://www.freedesktop.org/wiki/Software/dbus/) bindings for Swift.
 
