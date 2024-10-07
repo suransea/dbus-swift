@@ -2,7 +2,6 @@
 
 ![Github Release](https://flat.badgen.net/github/release/suransea/dbus-swift)
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/suransea/dbus-swift/swift.yml?style=flat-square)](https://github.com/suransea/dbus-swift/actions)
-![GitHub top language](https://img.shields.io/github/languages/top/suransea/dbus-swift?style=flat-square)
 ![GitHub License](https://img.shields.io/github/license/suransea/dbus-swift?style=flat-square)
 
 [D-Bus](https://www.freedesktop.org/wiki/Software/dbus/) bindings for Swift.
