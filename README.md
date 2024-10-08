@@ -8,13 +8,17 @@
 
 [D-Bus](https://www.freedesktop.org/wiki/Software/dbus/) bindings for Swift.
 
+## Documentation
+
+The [API Documentation](https://swiftpackageindex.com/suransea/dbus-swift/main/documentation/dbus) is available on Swift Package Index.
+
 ## Examples
 
 ### Client
 
 ```swift
 let connection = try Connection(type: .session)
-try connection.setupDispatch(with: RunLoop.main)
+try connection.setupDispatch(with: DispatchQueue.main)
 let object = ObjectProxy(
   connection: connection,
   destination: "com.example.Foo",
@@ -55,7 +59,7 @@ _ = try properties.Foo.observe { (newValue: String) in
 
 ```swift
 let connection = try Connection(type: .session, private: true)
-try connection.setupDispatch(with: RunLoop.main)
+try connection.setupDispatch(with: DispatchQueue.main)
 let bus = Bus(connection: connection)
 _ = try await bus.requestName("com.example.Foo", .doNotQueue)
 let object = ObjectProxy(connection: connection, path: "/com/example/Foo")
@@ -92,7 +96,7 @@ try properties.Foo.didChange("bar")
 
 ```swift
 let connection = try Connection(type: .session)
-try connection.setupDispatch(with: RunLoop.main)
+try connection.setupDispatch(with: DispatchQueue.main)
 let object = ObjectProxy(connection: connection, path: "/com/example/Foo")
 
 // Emit signals
@@ -112,7 +116,7 @@ _ = try signals.Foo.connect { (a: String, b: Int32) in
 Conforming to `Argument` protocol, the following Swift types can be used as D-Bus arguments:
 
 | Swift Type            | D-Bus Type            | D-Bus Signature | Notes                                   |
-|-----------------------|-----------------------|-----------------|-----------------------------------------|
+| --------------------- | --------------------- | --------------- | --------------------------------------- |
 | `Swift.UInt8`         | `BYTE`                | `y`             |                                         |
 | `Swift.Bool`          | `BOOLEAN`             | `b`             |                                         |
 | `Swift.Int16`         | `INT16`               | `n`             |                                         |

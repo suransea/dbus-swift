@@ -1,4 +1,5 @@
 import CDBus
+import CoreFoundation
 import Dispatch
 import Foundation
 
@@ -65,6 +66,29 @@ public struct WatchFlags: OptionSet, Sendable {
   public static let hangup = Self(rawValue: 1 << 3)
 }
 
+/// A protocol for handling watches.
+public protocol WatchDelegate: AnyObject {
+  /// Adds a watch.
+  ///
+  /// - Parameter watch: The watch to add.
+  /// - Returns: `true` if the watch was added successfully, `false` otherwise.
+  func add(watch: Watch) -> Bool
+
+  /// Removes a watch.
+  ///
+  /// - Parameter watch: The watch to remove.
+  func remove(watch: Watch)
+
+  /// Called when a watch is toggled.
+  ///
+  /// - Parameter watch: The toggled watch.
+  func onToggled(watch: Watch)
+}
+
+private typealias Dispose = () -> Void
+
+#if canImport(Darwin)
+
 extension WatchFlags {
   /// Initializes a new `WatchFlags` from `CFOptionFlags`.
   ///
@@ -95,28 +119,11 @@ extension CFOptionFlags {
   }
 }
 
-/// A protocol for handling watches.
-public protocol WatchDelegate: AnyObject {
-  /// Adds a watch.
-  ///
-  /// - Parameter watch: The watch to add.
-  /// - Returns: `true` if the watch was added successfully, `false` otherwise.
-  func add(watch: Watch) -> Bool
-
-  /// Removes a watch.
-  ///
-  /// - Parameter watch: The watch to remove.
-  func remove(watch: Watch)
-
-  /// Called when a watch is toggled.
-  ///
-  /// - Parameter watch: The toggled watch.
-  func onToggled(watch: Watch)
-}
-
-private typealias Dispose = () -> Void
-
 /// A class that handles watches using `RunLoop`.
+///
+/// Note: This class is currently only available on Darwin platforms,
+/// as it relies on `CFFileDescriptor`, which is not supported by
+/// `swift-corelibs-foundation` at this time.
 public class RunLoopWatcher: WatchDelegate {
   /// The run loop used to handle watches.
   private let runLoop: CFRunLoop
@@ -193,6 +200,8 @@ public class RunLoopWatcher: WatchDelegate {
     }
   }
 }
+
+#endif  // canImport(Darwin)
 
 /// A class that handles watches using `DispatchQueue`.
 public class DispatchQueueWatcher: WatchDelegate {

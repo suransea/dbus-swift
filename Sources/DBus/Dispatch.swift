@@ -1,4 +1,5 @@
 import CDBus
+import CoreFoundation
 import Dispatch
 import Foundation
 
@@ -22,8 +23,12 @@ extension DispatchStatus {
   }
 }
 
+#if canImport(Darwin)
+
 extension Connection {
   /// Sets up dispatching with a `RunLoop`.
+  ///
+  /// Note: This function is only available on Darwin platforms, see `RunLoopWatcher` for more information.
   ///
   /// Note: This function sets `DispatchStatusHandler`, `WakeUpHandler`,
   /// `WatchDelegate`, and `TimeoutDelegate`, so you should not set them manually.
@@ -46,7 +51,11 @@ extension Connection {
     try setWatchDelegate(RunLoopWatcher(runLoop: runLoop, dispatcher: dispatchRemains))
     try setTimeoutDelegate(RunLoopTimer(runLoop: runLoop))
   }
+}
 
+#endif  // canImport(Darwin)
+
+extension Connection {
   /// Sets up dispatching with a `DispatchQueue`.
   ///
   /// Note: This function sets `DispatchStatusHandler`, `WatchDelegate`,
