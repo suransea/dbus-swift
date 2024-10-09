@@ -41,15 +41,6 @@ let foo: String = try await properties.Foo.get()
 try await properties.Foo.set("bar")
 
 // Observe property changes
-let bus = Bus(connection: connection)
-try await bus.addMatch(
-  MatchRule(
-    type: .signal,
-    path: "/com/example/Foo",
-    interface: .properties,
-    member: "PropertiesChanged"
-  )
-)
 _ = try properties.Foo.observe { (newValue: String) in
   // ...
 }
@@ -104,8 +95,6 @@ let signals = object.signals(interface: "com.example.Foo")
 try signals.Foo.emit("one", 2 as Int32)
 
 // Connect to signals
-let bus = Bus(connection: connection)
-try await bus.addMatch(MatchRule(type: .signal, path: "/com/example/Foo"))
 _ = try signals.Foo.connect { (a: String, b: Int32) in
   // ...
 }

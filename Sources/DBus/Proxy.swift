@@ -259,15 +259,23 @@ public struct SignalProxy {
   /// Registers a handler for the signal.
   ///
   /// - Parameters:
+  ///   - addMatch: Whether the signal should add a match rule.
   ///   - consumed: Whether the signal should be consumed.
   ///   - handler: The handler to register.
   /// - Throws: `DBus.Error` if the handler could not be registered.
   /// - Returns: A function to unregister the handler.
   public func connect<each T: Argument>(
-    consumed: Bool = false,
+    addMatch: Bool = true, consumed: Bool = false,
     _ handler: @escaping (repeat each T) -> Void
   ) throws(DBus.Error) -> () throws(DBus.Error) -> Void {
-    try object.connection.registerHandler(path: object.path) { message in
+    if addMatch {
+      let bus = Bus(connection: object.connection, timeout: object.timeout)
+      let matchRule = MatchRule(
+        type: .signal, sender: object.destination, path: object.path,
+        interface: interface, member: signal)
+      try bus.addMatch(matchRule)
+    }
+    return try object.connection.registerHandler(path: object.path) { message in
       guard message.type == .signal else { return .notYet }
       guard message.interface == interface else { return .notYet }
       guard message.member == signal else { return .notYet }

@@ -70,22 +70,22 @@ extension MatchRule {
     if let typeString {
       components.append(("type", typeString))
     }
-    if let sender {
+    if let sender, !sender.rawValue.isEmpty {
       components.append(("sender", sender.rawValue))
     }
-    if let path {
+    if let path, !path.rawValue.isEmpty {
       components.append(("path", path.rawValue))
     }
-    if let pathNamespace {
+    if let pathNamespace, !pathNamespace.rawValue.isEmpty {
       components.append(("path_namespace", pathNamespace.rawValue))
     }
-    if let destination {
+    if let destination, !destination.rawValue.isEmpty {
       components.append(("destination", destination.rawValue))
     }
-    if let interface {
+    if let interface, !interface.rawValue.isEmpty {
       components.append(("interface", interface.rawValue))
     }
-    if let member {
+    if let member, !member.rawValue.isEmpty {
       components.append(("member", member.rawValue))
     }
     if let eavesdrop {
